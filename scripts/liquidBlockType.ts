@@ -61,7 +61,6 @@ export class LiquidBlockType extends BlockType {
               if (sideBlock == leftBlock) sideBlock.flowDirection = -1
               else sideBlock.flowDirection = 1
               world.addActiveBlock(sideBlock)
-              world.addActiveBlock(sideBlock.blockAbove(world)!)
               hasChanged = true
             }
             if (
@@ -70,6 +69,7 @@ export class LiquidBlockType extends BlockType {
             ) {
               world.addActiveBlock(sideBlock)
             }
+            world.addActiveBlock(block.blockAbove(world)!)
           }
         }
       }
@@ -82,7 +82,7 @@ export class LiquidBlockType extends BlockType {
     if (!hasChanged) {
       // If nothing has changed, then we are done.
       world.removeActiveBlock(block)
+      block.flowDirection = 0
     }
-    // If not, check to see if anything can flow sideways. If so, flow sideways.
   }
 }

@@ -71,6 +71,7 @@ export default class GamePage extends Vue {
     this.game.world.addActiveBlock(block.blockBelow(this.game.world)!)
     this.game.world.addActiveBlock(block.blockLeft(this.game.world)!)
     this.game.world.addActiveBlock(block.blockRight(this.game.world)!)
+    this.game.world.addActiveBlock(block.blockAbove(this.game.world)!)
   }
 }
 </script>
