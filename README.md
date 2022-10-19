@@ -1,5 +1,7 @@
 # VerticalVenture
 
+A test of what it would take to create a web-based terraria clone.
+
 ## Build Setup
 
 ```bash
