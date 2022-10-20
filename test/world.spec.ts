@@ -23,22 +23,14 @@ describe('world', () => {
     waterBlock.percentFilled = 100
     expect(waterBlock.blockType.name).toEqual('water')
     expect(waterBlock.percentFilled).toEqual(100)
-    game.world.addActiveBlock(waterBlock)
-    game.world.processActiveBlocks()
-    expect(waterBlock.percentFilled).toEqual(90)
-    game.world.processActiveBlocks()
-    expect(waterBlock.percentFilled).toEqual(80)
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    game.world.processActiveBlocks()
-    expect(waterBlock.percentFilled).toEqual(0)
-    expect(waterBlock.blockBelow(game.world)!.percentFilled).toEqual(10)
   })
 
-  test('AddSolid', () => {})
+  test('AddSolid', () => {
+    let solidBlock = game.world.getBlock(0, 23)!
+    expect(solidBlock).toBeTruthy()
+    solidBlock.blockType = game.world.blockTypes.get('rock')!
+    solidBlock.percentFilled = 100
+    expect(solidBlock.blockType.name).toEqual('rock')
+    expect(solidBlock.percentFilled).toEqual(100)
+  })
 })

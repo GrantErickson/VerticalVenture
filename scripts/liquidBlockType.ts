@@ -3,7 +3,8 @@ import { World } from './world'
 import { Block } from './block'
 
 export class LiquidBlockType extends BlockType {
-  amountToFlow: number = 10
+  percentToFlowDown: number = 50
+  amountToEvaporate: number = 0.5
 
   constructor(name: string, background: string) {
     super(name, BlockNature.liquid, background)
@@ -12,77 +13,87 @@ export class LiquidBlockType extends BlockType {
   process(block: Block, world: World): void {
     // Check to see if anything can flow down. If so, flow down.
     let hasChanged = false
-    let blockBelow = block.blockBelow(world)
     if (block.percentFilled > 0) {
+      let blockBelow = block.blockBelow(world)
+      let blockBelowFilled = false
       if (
         blockBelow &&
         blockBelow.blockType.nature !== BlockNature.solid &&
         blockBelow.percentFilled < 100
       ) {
-        // Flow a bit down to the lower block.
-        block.percentFilled -= this.amountToFlow
+        // Flow some down to the lower block.
+        let amountToFlow = block.percentFilled * (this.percentToFlowDown / 100)
+        if (amountToFlow < this.amountToEvaporate) {
+          // Empty the block
+          amountToFlow = block.percentFilled
+        }
+        // See if this fills the lower block
+        if (blockBelow.percentFilled + amountToFlow >= 100) {
+          amountToFlow = 100 - blockBelow.percentFilled
+          blockBelowFilled = true
+        }
+        block.percentFilled -= amountToFlow
+        blockBelow.percentFilled += amountToFlow
+
         // TODO: Handle when it is another type of liquid
         blockBelow.blockType = block.blockType
-        blockBelow.percentFilled += this.amountToFlow
-        blockBelow.flowDirection = 0
         world.addActiveBlock(blockBelow)
         hasChanged = true
+        blockBelow.isFlowing = true
       } else {
-        // Check to see if anything can flow left or right
-        let blocks = []
-        // Randomize the order in which this happens.
+        blockBelowFilled = true
+      }
+      if (blockBelowFilled) {
+        block.isFlowing = false
+        // Average the amount of liquid to the left and right.
         let leftBlock = block.blockLeft(world)
         let rightBlock = block.blockRight(world)
-        if (block.flowDirection == -1) {
-          blocks.push(leftBlock)
-          //blocks.push(rightBlock)
-        } else if (block.flowDirection == 1) {
-          blocks.push(rightBlock)
-          //blocks.push(leftBlock)
-        } else if (Math.random() > 0.5) {
-          blocks.push(leftBlock)
-          blocks.push(rightBlock)
+        let total = block.percentFilled
+        let blockCount = 1
+        // Add up the totals for the left and right blocks so we can average them.
+        if (leftBlock && leftBlock.blockType.nature !== BlockNature.solid) {
+          total += leftBlock.percentFilled
+          blockCount++
         } else {
-          blocks.push(rightBlock)
-          blocks.push(leftBlock)
+          leftBlock = null
+        }
+        if (rightBlock && rightBlock.blockType.nature !== BlockNature.solid) {
+          total += rightBlock.percentFilled
+          blockCount++
+        } else {
+          rightBlock = null
         }
 
-        for (let sideBlock of blocks) {
-          if (sideBlock) {
-            if (
-              sideBlock.blockType.nature !== BlockNature.solid &&
-              sideBlock.percentFilled < block.percentFilled
-            ) {
-              // Flow a bit to the block.
-              block.percentFilled -= this.amountToFlow
-              sideBlock.percentFilled += this.amountToFlow
-              // TODO: Handle when it is another type of liquid
-              sideBlock.blockType = block.blockType
-              if (sideBlock == leftBlock) sideBlock.flowDirection = -1
-              else sideBlock.flowDirection = 1
-              world.addActiveBlock(sideBlock)
-              hasChanged = true
-            }
-            if (
-              sideBlock.blockType.nature !== BlockNature.solid &&
-              sideBlock.percentFilled > block.percentFilled
-            ) {
-              world.addActiveBlock(sideBlock)
-            }
-            world.addActiveBlock(sideBlock.blockAbove(world)!)
+        let average = total / blockCount
+        // Make sure this is worth flowing
+        if (Math.abs(average - block.percentFilled) > this.amountToEvaporate) {
+          if (leftBlock) {
+            leftBlock.percentFilled = average
+            world.addActiveBlock(leftBlock)
+            leftBlock.blockType = block.blockType
           }
+          if (rightBlock) {
+            rightBlock.percentFilled = average
+            world.addActiveBlock(rightBlock)
+            rightBlock.blockType = block.blockType
+          }
+          block.percentFilled = average
+          hasChanged = true
         }
       }
       if (block.percentFilled == 0) {
         block.blockType = world.blockTypes.get('empty')!
-        block.flowDirection = 0
         world.removeActiveBlock(block)
       }
     }
     if (!hasChanged) {
       // If nothing has changed, then we are done.
       world.removeActiveBlock(block)
-      block.flowDirection = 0
+      block.isFlowing = false
+    } else {
+      world.addActiveBlock(block.blockAbove(world)!)
+      world.addActiveBlock(block.blockLeft(world)!)
+      world.addActiveBlock(block.blockRight(world)!)
     }
   }
 }
