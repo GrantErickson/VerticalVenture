@@ -1,6 +1,6 @@
 import { nextTick } from 'vue/types/umd'
 import { World } from './world'
-import { BlockType } from './blockType'
+import { BlockType, BlockNature } from './blockType'
 
 export class Game {
   world: World
@@ -46,7 +46,7 @@ export class Game {
         let newType: BlockType | null = null
         let surroundingBlockType = block.surroundingBlockType
         if (surroundingBlockType) {
-          if (Math.random() > 0.4) {
+          if (Math.random() > 0.3) {
             newType = surroundingBlockType
           }
         }
@@ -61,6 +61,36 @@ export class Game {
           }
         }
         block.blockType = newType
+      }
+    }
+    this.settleBlocks()
+  }
+
+  settleBlocks() {
+    // Let all single blocks drop down
+    for (let x = 0; x < this.world.width; x++) {
+      for (let y = this.world.height - 1; y > 0; y--) {
+        // Start at the top
+        let block = this.world.getBlock(x, y)!
+        if (block.blockType.nature === BlockNature.solid) {
+          if (
+            block.blockLeft &&
+            block.blockLeft.blockType.nature !== BlockNature.solid &&
+            block.blockRight &&
+            block.blockRight.blockType.nature !== BlockNature.solid &&
+            block.blockBelow &&
+            block.blockBelow.blockType.nature !== BlockNature.solid &&
+            block.blockAbove &&
+            block.blockAbove.blockType.nature !== BlockNature.solid
+          ) {
+            console.log(`settling x: ${x}, y: ${y} - ${block.blockType.name}`)
+            block.blockBelow?.blockType == block.blockType
+            block.blockType = this.world.getBlockType('empty')
+            console.log(
+              `settling x: ${x}, y: ${y} - ${block.blockBelow!.blockType.name}`
+            )
+          }
+        }
       }
     }
   }
