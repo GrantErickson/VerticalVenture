@@ -69,7 +69,7 @@ export class LiquidBlockType extends BlockType {
             ) {
               world.addActiveBlock(sideBlock)
             }
-            world.addActiveBlock(block.blockAbove(world)!)
+            world.addActiveBlock(sideBlock.blockAbove(world)!)
           }
         }
       }
