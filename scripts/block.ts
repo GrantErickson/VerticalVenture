@@ -7,8 +7,6 @@ export class Block {
   public blockType: BlockType
   percentFilled: number = 0
   isActive: boolean = false
-  // TODO: Flow Direction may solve the problem of jittery water
-  flowDirection: number = 0 // - 1: Left, 1: Right, 0: None
 
   constructor(x: number, y: number, blockType: BlockType) {
     this.x = x

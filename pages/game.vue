@@ -20,7 +20,7 @@
                 left: block.x * 20 + 'px',
               }"
               @click="clickBlock(block)"
-              >{{ block.percentFilled }}:{{ block.flowDirection }}
+              >{{ Math.round(block.percentFilled) }}
             </span>
           </template>
         </div>
