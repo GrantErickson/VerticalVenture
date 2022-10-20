@@ -14,7 +14,7 @@ export class LiquidBlockType extends BlockType {
     // Check to see if anything can flow down. If so, flow down.
     let hasChanged = false
     if (block.percentFilled > 0) {
-      let blockBelow = block.blockBelow(world)
+      let blockBelow = block.blockBelow
       let blockBelowFilled = false
       if (
         blockBelow &&
@@ -46,8 +46,8 @@ export class LiquidBlockType extends BlockType {
       if (blockBelowFilled) {
         block.isFlowing = false
         // Average the amount of liquid to the left and right.
-        let leftBlock = block.blockLeft(world)
-        let rightBlock = block.blockRight(world)
+        let leftBlock = block.blockLeft
+        let rightBlock = block.blockRight
         let total = block.percentFilled
         let blockCount = 1
         // Add up the totals for the left and right blocks so we can average them.
@@ -82,7 +82,7 @@ export class LiquidBlockType extends BlockType {
         }
       }
       if (block.percentFilled == 0) {
-        block.blockType = world.blockTypes.get('empty')!
+        block.blockType = world.getBlockType('empty')
         world.removeActiveBlock(block)
       }
     }
@@ -91,9 +91,17 @@ export class LiquidBlockType extends BlockType {
       world.removeActiveBlock(block)
       block.isFlowing = false
     } else {
-      world.addActiveBlock(block.blockAbove(world)!)
-      world.addActiveBlock(block.blockLeft(world)!)
-      world.addActiveBlock(block.blockRight(world)!)
+      world.addActiveBlock(block.blockAbove)
+      world.addActiveBlock(block.blockLeft)
+      world.addActiveBlock(block.blockRight)
+    }
+  }
+
+  changeType(block: Block, world: World): void {
+    world.addActiveBlock(block)
+    block.isFlowing = false
+    if (block.percentFilled == 0) {
+      block.percentFilled = 100
     }
   }
 }

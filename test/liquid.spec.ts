@@ -5,7 +5,7 @@ describe('liquid', () => {
     const world = new World(100, 25)
 
     let waterBlock = world.getBlock(0, 24)!
-    waterBlock.blockType = world.blockTypes.get('water')!
+    waterBlock.blockType = world.getBlockType('water')
     waterBlock.percentFilled = 100
     expect(waterBlock.blockType.name).toEqual('water')
     expect(waterBlock.percentFilled).toEqual(100)
@@ -23,24 +23,23 @@ describe('liquid', () => {
     //world.processActiveBlocks()
     //world.processActiveBlocks()
     expect(waterBlock.percentFilled).toEqual(0)
-    expect(waterBlock.blockBelow(world)!.percentFilled < 5).toBeTruthy()
+    expect(waterBlock.blockBelow!.percentFilled < 5).toBeTruthy()
   })
 
   test('Drain Around Solid', () => {
     const world = new World(100, 25)
 
     let waterBlock = world.getBlock(1, 24)!
-    waterBlock.blockType = world.blockTypes.get('water')!
+    waterBlock.blockType = world.getBlockType('water')
     waterBlock.percentFilled = 100
     world.addActiveBlock(waterBlock)
-    let leftBlock = waterBlock.blockLeft(world)!
+    let leftBlock = waterBlock.blockLeft!
     expect(leftBlock).toBeTruthy()
-    let rightBlock = waterBlock.blockRight(world)!
+    let rightBlock = waterBlock.blockRight!
     expect(rightBlock).toBeTruthy()
 
     let solidBlock = world.getBlock(1, 23)!
-    solidBlock.blockType = world.blockTypes.get('rock')!
-    solidBlock.percentFilled = 100
+    solidBlock.blockType = world.getBlockType('rock')!
 
     expect(waterBlock.percentFilled).toEqual(100)
     expect(world.activeBlocks.length).toEqual(1)

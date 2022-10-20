@@ -19,7 +19,7 @@ describe('world', () => {
   test('AddWater', () => {
     let waterBlock = game.world.getBlock(0, 24)!
     expect(waterBlock).toBeTruthy()
-    waterBlock.blockType = game.world.blockTypes.get('water')!
+    waterBlock.blockType = game.world.getBlockType('water')
     waterBlock.percentFilled = 100
     expect(waterBlock.blockType.name).toEqual('water')
     expect(waterBlock.percentFilled).toEqual(100)
@@ -28,7 +28,7 @@ describe('world', () => {
   test('AddSolid', () => {
     let solidBlock = game.world.getBlock(0, 23)!
     expect(solidBlock).toBeTruthy()
-    solidBlock.blockType = game.world.blockTypes.get('rock')!
+    solidBlock.blockType = game.world.getBlockType('rock')
     solidBlock.percentFilled = 100
     expect(solidBlock.blockType.name).toEqual('rock')
     expect(solidBlock.percentFilled).toEqual(100)

@@ -3,7 +3,7 @@
     <v-row>
       <v-col class="text-center"> The Game </v-col>
       <v-col><v-btn @click="addWater">Water</v-btn></v-col>
-      <v-col><v-btn @click="addRock">Rock</v-btn></v-col>
+      <v-col><v-btn @click="generateWorld">Generate</v-btn></v-col>
     </v-row>
     <v-row>
       <v-col>
@@ -24,7 +24,7 @@
               }"
               @click="clickBlock(block)"
             >
-              <!-- {{ Math.round(block.percentFilled) }} -->
+              <!-- {{ block.blockType.name }} -->
               <div
                 class="fill"
                 v-bind:style="{
@@ -58,33 +58,34 @@ export default class GamePage extends Vue {
 
   addWater() {
     let block = this.game.world.getBlock(5, 20)!
-    block.blockType = this.game.world.blockTypes.get('water')!
+    block.blockType = this.game.world.getBlockType('water')
     block.percentFilled = 100
     this.game.world.addActiveBlock(block)
   }
-  addRock() {
-    let block = this.game.world.getBlock(5, 19)!
-    block.blockType = this.game.world.blockTypes.get('rock')!
-    block.percentFilled = 100
+  generateWorld() {
+    this.game.stop()
+    this.game = new Game(50, 25)
+    this.game.createRandomWorld()
+    this.game.start()
   }
   clickBlock(block: Block) {
     if (block.blockType.name == 'water') {
-      block.blockType = this.game.world.blockTypes.get('rock')!
+      block.blockType = this.game.world.getBlockType('rock')
       block.percentFilled = 100
       block.isFlowing = false
     } else if (block.blockType.name == 'rock') {
-      block.blockType = this.game.world.blockTypes.get('empty')!
+      block.blockType = this.game.world.getBlockType('empty')
       block.percentFilled = 0
     } else if (block.blockType.name == 'empty') {
-      block.blockType = this.game.world.blockTypes.get('rock')!
+      block.blockType = this.game.world.getBlockType('rock')
       block.percentFilled = 100
       block.isFlowing = false
     }
     this.game.world.addActiveBlock(block)
-    this.game.world.addActiveBlock(block.blockBelow(this.game.world)!)
-    this.game.world.addActiveBlock(block.blockLeft(this.game.world)!)
-    this.game.world.addActiveBlock(block.blockRight(this.game.world)!)
-    this.game.world.addActiveBlock(block.blockAbove(this.game.world)!)
+    this.game.world.addActiveBlock(block.blockBelow)
+    this.game.world.addActiveBlock(block.blockLeft)
+    this.game.world.addActiveBlock(block.blockRight)
+    this.game.world.addActiveBlock(block.blockAbove)
   }
 }
 </script>

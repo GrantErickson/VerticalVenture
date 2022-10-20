@@ -10,7 +10,7 @@ export class World {
   width: number
   height: number
   activeBlocks: Block[] = []
-  blockTypes = new Map<string, BlockType>()
+  private blockTypes = new Map<string, BlockType>()
 
   constructor(width: number, height: number) {
     this.width = width
@@ -27,7 +27,7 @@ export class World {
     for (let x = 0; x < width; x++) {
       this.blocks[x] = []
       for (let y = 0; y < height; y++) {
-        this.blocks[x][y] = new Block(x, y, this.blockTypes.get('empty')!)
+        this.blocks[x][y] = new Block(this, x, y, this.blockTypes.get('empty')!)
       }
     }
   }
@@ -41,13 +41,13 @@ export class World {
     return this.blocks[x][y]
   }
 
-  addActiveBlock(block?: Block) {
+  addActiveBlock(block: Block | null) {
     if (block && this.activeBlocks.indexOf(block) === -1) {
       this.activeBlocks.push(block)
       block.isActive = true
     }
   }
-  removeActiveBlock(block?: Block) {
+  removeActiveBlock(block: Block | null) {
     if (block) {
       let index = this.activeBlocks.indexOf(block)
       if (index > -1) {
@@ -55,6 +55,12 @@ export class World {
         block.isActive = false
       }
     }
+  }
+
+  getBlockType(name: string): BlockType {
+    let result = this.blockTypes.get(name)
+    if (!result) throw new Error(`Block type ${name} not found`)
+    return result
   }
 
   processActiveBlocks() {

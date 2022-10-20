@@ -19,4 +19,6 @@ export abstract class BlockType {
   }
 
   abstract process(block: Block, world: World): void
+
+  abstract changeType(block: Block, world: World): void
 }

@@ -10,4 +10,9 @@ export class EmptyBlockType extends BlockType {
   process(block: Block, world: World): void {
     world.removeActiveBlock(block)
   }
+
+  changeType(block: Block, world: World): void {
+    block.isFlowing = false
+    block.percentFilled = 0
+  }
 }

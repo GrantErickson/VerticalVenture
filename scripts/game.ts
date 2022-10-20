@@ -1,5 +1,6 @@
 import { nextTick } from 'vue/types/umd'
 import { World } from './world'
+import { BlockType } from './blockType'
 
 export class Game {
   world: World
@@ -36,6 +37,32 @@ export class Game {
     //console.log(this.world.activeBlocks.length)
     this.gameTime += this.gameSpeed / 1000
     this.world.processActiveBlocks()
+  }
+
+  createRandomWorld() {
+    for (let x = 0; x < this.world.width; x++) {
+      for (let y = 0; y < this.world.height; y++) {
+        let block = this.world.getBlock(x, y)!
+        let newType: BlockType | null = null
+        let surroundingBlockType = block.surroundingBlockType
+        if (surroundingBlockType) {
+          if (Math.random() > 0.4) {
+            newType = surroundingBlockType
+          }
+        }
+        if (!newType) {
+          let seed = Math.random()
+          if (seed > 0.8) {
+            newType = this.world.getBlockType('water')
+          } else if (seed > 0.4) {
+            newType = this.world.getBlockType('rock')
+          } else {
+            newType = block.blockType
+          }
+        }
+        block.blockType = newType
+      }
+    }
   }
 }
 
