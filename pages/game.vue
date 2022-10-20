@@ -13,6 +13,10 @@
               class="block"
               v-for="block in row"
               v-bind:key="block.key"
+              v-bind:class="{
+                flowing: block.isFlowing,
+                static: !block.isFlowing,
+              }"
               v-bind:style="{
                 borderWidth: block.isActive ? '1px' : '0px',
                 top: game.heightInPx - block.y * 20 + 'px',
@@ -25,7 +29,8 @@
                 class="fill"
                 v-bind:style="{
                   backgroundColor: block.blockType.background,
-                  height: block.percentFilled + '%',
+                  height: block.isFlowing ? '100%' : block.percentFilled + '%',
+                  width: block.isFlowing ? block.percentFilled + '%' : '100%',
                 }"
               ></div>
               <div class="overlay"></div>
@@ -66,12 +71,14 @@ export default class GamePage extends Vue {
     if (block.blockType.name == 'water') {
       block.blockType = this.game.world.blockTypes.get('rock')!
       block.percentFilled = 100
+      block.isFlowing = false
     } else if (block.blockType.name == 'rock') {
       block.blockType = this.game.world.blockTypes.get('empty')!
       block.percentFilled = 0
     } else if (block.blockType.name == 'empty') {
       block.blockType = this.game.world.blockTypes.get('rock')!
       block.percentFilled = 100
+      block.isFlowing = false
     }
     this.game.world.addActiveBlock(block)
     this.game.world.addActiveBlock(block.blockBelow(this.game.world)!)
@@ -94,15 +101,24 @@ export default class GamePage extends Vue {
   position: absolute;
   box-sizing: border-box;
 }
+
 .world {
   top: 100px;
   position: relative;
 }
 
-.block .fill {
+.block.static .fill {
   position: absolute;
   bottom: 0px;
   left: 0px;
   width: 100%;
+}
+
+.block.flowing .fill {
+  position: absolute;
+  top: 0px;
+  left: 50%;
+  right: 50%;
+  height: 100%;
 }
 </style>

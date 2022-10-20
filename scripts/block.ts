@@ -7,6 +7,7 @@ export class Block {
   public blockType: BlockType
   percentFilled: number = 0
   isActive: boolean = false
+  isFlowing: boolean = false
 
   constructor(x: number, y: number, blockType: BlockType) {
     this.x = x

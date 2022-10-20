@@ -39,10 +39,12 @@ export class LiquidBlockType extends BlockType {
         blockBelow.blockType = block.blockType
         world.addActiveBlock(blockBelow)
         hasChanged = true
+        blockBelow.isFlowing = true
       } else {
         blockBelowFilled = true
       }
       if (blockBelowFilled) {
+        block.isFlowing = false
         // Average the amount of liquid to the left and right.
         let leftBlock = block.blockLeft(world)
         let rightBlock = block.blockRight(world)
@@ -87,6 +89,7 @@ export class LiquidBlockType extends BlockType {
     if (!hasChanged) {
       // If nothing has changed, then we are done.
       world.removeActiveBlock(block)
+      block.isFlowing = false
     } else {
       world.addActiveBlock(block.blockAbove(world)!)
       world.addActiveBlock(block.blockLeft(world)!)
