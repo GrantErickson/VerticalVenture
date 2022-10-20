@@ -26,7 +26,6 @@ export class LiquidBlockType extends BlockType {
         if (amountToFlow < this.amountToEvaporate) {
           // Empty the block
           amountToFlow = block.percentFilled
-          //console.log('Emptying block')
         }
         // See if this fills the lower block
         if (blockBelow.percentFilled + amountToFlow >= 100) {
@@ -64,7 +63,6 @@ export class LiquidBlockType extends BlockType {
         }
 
         let average = total / blockCount
-        console.log(`Sideways: ${total}/${blockCount} = ${average}`)
         // Make sure this is worth flowing
         if (Math.abs(average - block.percentFilled) > this.amountToEvaporate) {
           if (leftBlock) {

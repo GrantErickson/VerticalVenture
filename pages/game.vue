@@ -9,19 +9,27 @@
       <v-col>
         <div class="world">
           <template v-for="row in game.world.blocks">
-            <span
+            <div
               class="block"
               v-for="block in row"
               v-bind:key="block.key"
               v-bind:style="{
-                backgroundColor: block.blockType.background,
-                borderColor: block.isActive ? 'red' : 'black',
+                borderWidth: block.isActive ? '1px' : '0px',
                 top: game.heightInPx - block.y * 20 + 'px',
                 left: block.x * 20 + 'px',
               }"
               @click="clickBlock(block)"
-              >{{ Math.round(block.percentFilled) }}
-            </span>
+            >
+              <!-- {{ Math.round(block.percentFilled) }} -->
+              <div
+                class="fill"
+                v-bind:style="{
+                  backgroundColor: block.blockType.background,
+                  height: block.percentFilled + '%',
+                }"
+              ></div>
+              <div class="overlay"></div>
+            </div>
           </template>
         </div>
       </v-col>
@@ -40,8 +48,6 @@ export default class GamePage extends Vue {
   game = new Game(50, 25)
 
   mounted() {
-    console.log(this.game.world.width)
-    console.log(this.game.world.height)
     this.game.start()
   }
 
@@ -78,18 +84,25 @@ export default class GamePage extends Vue {
 
 <style scoped>
 .block {
-  border: 1px solid black;
+  border: 0px solid rgba(50, 50, 10, 0.1);
   margin: 0px;
   display: inline-block;
   width: 20px;
   height: 20px;
   background-color: #000;
-  border-color: white;
   font-size: 0.55em;
   position: absolute;
+  box-sizing: border-box;
 }
 .world {
   top: 100px;
   position: relative;
+}
+
+.block .fill {
+  position: absolute;
+  bottom: 0px;
+  left: 0px;
+  width: 100%;
 }
 </style>
