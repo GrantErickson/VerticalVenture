@@ -10,6 +10,7 @@ export class Game {
   gameTime: number = 0
   heightInPx: number
   blockSize: number = 20
+  drains: boolean = false
 
   constructor(width: number, height: number) {
     this.world = new World(width, height)
@@ -34,6 +35,13 @@ export class Game {
 
   // Moves the game ahead by a number of seconds
   tick(seconds: number = 1) {
+    if (this.drains) {
+      for (let x = 0; x < this.world.width; x++) {
+        let block = this.world.getBlock(x, 0)!
+        if (block.blockType.nature == BlockNature.liquid)
+          block.blockType = this.world.getBlockType('empty')
+      }
+    }
     //console.log(this.world.activeBlocks.length)
     this.gameTime += this.gameSpeed / 1000
     this.world.processActiveBlocks()

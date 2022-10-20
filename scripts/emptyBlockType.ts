@@ -14,5 +14,8 @@ export class EmptyBlockType extends BlockType {
   changeType(block: Block, world: World): void {
     block.isFlowing = false
     block.percentFilled = 0
+    world.addActiveBlock(block.blockAbove)
+    world.addActiveBlock(block.blockLeft)
+    world.addActiveBlock(block.blockRight)
   }
 }
