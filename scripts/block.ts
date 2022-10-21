@@ -1,5 +1,6 @@
 import { BlockType } from './blockType'
 import { World } from './world'
+import { Item } from './item'
 
 export class Block {
   #world: World
@@ -9,6 +10,8 @@ export class Block {
   percentFilled: number = 0
   isActive: boolean = false
   isFlowing: boolean = false
+  brightness: number = 0
+  #item: Item | null = null
 
   constructor(world: World, x: number, y: number, blockType: BlockType) {
     this.#world = world
@@ -23,6 +26,20 @@ export class Block {
   set blockType(blockType: BlockType) {
     this.#blockType = blockType
     this.#blockType.changeType(this, this.#world)
+  }
+
+  // Handle the item on this block
+  get item(): Item | null {
+    return this.#item
+  }
+  set item(item: Item | null) {
+    if (this.#item && this.#item.luminosity) {
+      this.#world.removeLight(this)
+    }
+    if (item && item.luminosity) {
+      this.#world.addLight(this)
+    }
+    this.#item = item
   }
 
   get blockBelow(): Block | null {

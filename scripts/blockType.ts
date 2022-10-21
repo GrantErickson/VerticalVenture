@@ -11,11 +11,18 @@ export abstract class BlockType {
   name: string
   nature: BlockNature
   background: string
+  opacity: number
 
-  constructor(name: string, nature: BlockNature, background: string) {
+  constructor(
+    name: string,
+    nature: BlockNature,
+    background: string,
+    opacity: number = 1
+  ) {
     this.name = name
     this.nature = nature
     this.background = background
+    this.opacity = opacity
   }
 
   abstract process(block: Block, world: World): void

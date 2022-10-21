@@ -1,48 +1,56 @@
 <template>
   <div>
     <v-row>
-      <v-col class="text-center"> The Game </v-col>
       <v-col><v-btn @click="addWater">Water</v-btn></v-col>
       <v-col><v-btn @click="addLotsOfWater">Lots of Water</v-btn></v-col>
       <v-col><v-btn @click="generateWorld">Generate</v-btn></v-col>
-      <v-col cols="3"
+      <v-col cols="2"
         ><v-switch v-model="game.drains" label="Drain"></v-switch
       ></v-col>
+      <v-col cols="2"
+        ><v-switch
+          v-model="game.dark"
+          label="Dark (shift-click) to add lights"
+        ></v-switch
+      ></v-col>
     </v-row>
-    <v-row>
-      <v-col>
-        <div class="world">
-          <template v-for="row in game.world.blocks">
-            <div
-              class="block"
-              v-for="block in row"
-              v-bind:key="block.key"
-              v-bind:class="{
-                flowing: block.isFlowing,
-                static: !block.isFlowing,
-              }"
-              v-bind:style="{
-                borderWidth: block.isActive ? '1px' : '0px',
-                top: game.heightInPx - block.y * 20 + 'px',
-                left: block.x * 20 + 'px',
-              }"
-              @click="clickBlock(block)"
-            >
-              <!-- {{ block.blockType.name }} -->
-              <div
-                class="fill"
-                v-bind:style="{
-                  backgroundColor: block.blockType.background,
-                  height: block.isFlowing ? '100%' : block.percentFilled + '%',
-                  width: block.isFlowing ? block.percentFilled + '%' : '100%',
-                }"
-              ></div>
-              <div class="overlay"></div>
-            </div>
-          </template>
+    <div class="world">
+      <template v-for="row in game.world.blocks">
+        <div
+          class="block"
+          v-for="block in row"
+          v-bind:key="block.key"
+          @click="clickBlock(block, $event)"
+          v-bind:class="{
+            flowing: block.isFlowing,
+            static: !block.isFlowing,
+          }"
+          v-bind:style="{
+            borderWidth1: block.isActive ? '1px' : '0px',
+            top: game.heightInPx - (block.y + 1) * 20 + 'px',
+            left: block.x * 20 + 'px',
+          }"
+        >
+          <!-- {{ block.blockType.name }} -->
+
+          <div
+            class="fill"
+            v-bind:style="{
+              backgroundColor: block.blockType.background,
+              height: block.isFlowing ? '100%' : block.percentFilled + '%',
+              width: block.isFlowing ? block.percentFilled + '%' : '100%',
+            }"
+          ></div>
+          <div v-if="block.item" class="item">
+            {{ block.item ? '🔦' : '' }}
+          </div>
+          <div
+            class="overlay"
+            v-bind:style="{ opacity: 0.97 - block.brightness }"
+          ></div>
         </div>
-      </v-col>
-    </v-row>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -52,6 +60,7 @@ import { Block } from '@/scripts/block'
 import Vue from 'vue'
 import Component from 'vue-class-component'
 import { BlockNature } from '~/scripts/blockType'
+import { Item } from '~/scripts/item'
 
 @Component({})
 export default class GamePage extends Vue {
@@ -81,24 +90,34 @@ export default class GamePage extends Vue {
     this.game.createRandomWorld()
     this.game.start()
   }
-  clickBlock(block: Block) {
-    if (block.blockType.name == 'water') {
-      block.blockType = this.game.world.getBlockType('rock')
-      block.percentFilled = 100
-      block.isFlowing = false
-    } else if (block.blockType.name == 'rock') {
-      block.blockType = this.game.world.getBlockType('empty')
-      block.percentFilled = 0
-    } else if (block.blockType.name == 'empty') {
-      block.blockType = this.game.world.getBlockType('rock')
-      block.percentFilled = 100
-      block.isFlowing = false
+  clickBlock(block: Block, event: MouseEvent) {
+    console.log(event)
+    if (event.shiftKey) {
+      if (block.item) {
+        block.item = null
+      } else {
+        block.item = new Item('torch', 1, 'Torch')
+        this.game.world.processLighting()
+      }
+    } else {
+      if (block.blockType.name == 'water') {
+        block.blockType = this.game.world.getBlockType('rock')
+        block.percentFilled = 100
+        block.isFlowing = false
+      } else if (block.blockType.name == 'rock') {
+        block.blockType = this.game.world.getBlockType('empty')
+        block.percentFilled = 0
+      } else if (block.blockType.name == 'empty') {
+        block.blockType = this.game.world.getBlockType('rock')
+        block.percentFilled = 100
+        block.isFlowing = false
+      }
+      this.game.world.addActiveBlock(block)
+      this.game.world.addActiveBlock(block.blockBelow)
+      this.game.world.addActiveBlock(block.blockLeft)
+      this.game.world.addActiveBlock(block.blockRight)
+      this.game.world.addActiveBlock(block.blockAbove)
     }
-    this.game.world.addActiveBlock(block)
-    this.game.world.addActiveBlock(block.blockBelow)
-    this.game.world.addActiveBlock(block.blockLeft)
-    this.game.world.addActiveBlock(block.blockRight)
-    this.game.world.addActiveBlock(block.blockAbove)
   }
 }
 </script>
@@ -110,15 +129,17 @@ export default class GamePage extends Vue {
   display: inline-block;
   width: 20px;
   height: 20px;
-  background-color: #000;
+  background-color: transparent;
   font-size: 0.55em;
   position: absolute;
   box-sizing: border-box;
 }
 
 .world {
-  top: 100px;
   position: relative;
+  background-image: url('https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/0be993e7-c7f4-46f2-aab1-46cbf7c572c5/d3kpvx8-b5b3fe3f-ea8c-4fe0-a26f-20ba52385a01.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzBiZTk5M2U3LWM3ZjQtNDZmMi1hYWIxLTQ2Y2JmN2M1NzJjNVwvZDNrcHZ4OC1iNWIzZmUzZi1lYThjLTRmZTAtYTI2Zi0yMGJhNTIzODVhMDEuanBnIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.sFTYZyh8xXS4wEmQ7SeoafcJFdRVL3k2WOHiefPFADQ');
+  width: 1000px;
+  height: 500px;
 }
 
 .block.static .fill {
@@ -126,6 +147,7 @@ export default class GamePage extends Vue {
   bottom: 0px;
   left: 0px;
   width: 100%;
+  z-index: 500;
 }
 
 .block.flowing .fill {
@@ -134,5 +156,25 @@ export default class GamePage extends Vue {
   left: 50%;
   right: 50%;
   height: 100%;
+  z-index: 500;
+}
+
+.block .item {
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  z-index: 800;
+}
+
+.block .overlay {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  z-index: 1000;
 }
 </style>

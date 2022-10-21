@@ -4,7 +4,7 @@ import { Block } from './block'
 
 export class SolidBlockType extends BlockType {
   constructor(name: string, background: string) {
-    super(name, BlockNature.solid, background)
+    super(name, BlockNature.solid, background, 0.8)
   }
 
   process(block: Block, world: World): void {

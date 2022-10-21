@@ -11,6 +11,7 @@ export class Game {
   heightInPx: number
   blockSize: number = 20
   drains: boolean = false
+  dark: boolean = false
 
   constructor(width: number, height: number) {
     this.world = new World(width, height)
@@ -45,6 +46,11 @@ export class Game {
     //console.log(this.world.activeBlocks.length)
     this.gameTime += this.gameSpeed / 1000
     this.world.processActiveBlocks()
+    if (this.dark) {
+      this.world.processLighting()
+    } else {
+      this.world.clearBrightness(1)
+    }
   }
 
   createRandomWorld() {
