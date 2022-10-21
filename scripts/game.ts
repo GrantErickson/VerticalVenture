@@ -98,12 +98,8 @@ export class Game {
             block.blockAbove &&
             block.blockAbove.blockType.nature !== BlockNature.solid
           ) {
-            console.log(`settling x: ${x}, y: ${y} - ${block.blockType.name}`)
             block.blockBelow?.blockType == block.blockType
             block.blockType = this.world.getBlockType('empty')
-            console.log(
-              `settling x: ${x}, y: ${y} - ${block.blockBelow!.blockType.name}`
-            )
           }
         }
       }

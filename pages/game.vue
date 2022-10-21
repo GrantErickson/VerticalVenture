@@ -91,14 +91,12 @@ export default class GamePage extends Vue {
 
   hoverBlock(block: Block | null) {
     if (block) {
-      //console.log('adding light to', block.x, block.y)
       this.game.world.addLight(block)
     }
   }
   leaveBlock(block: Block | null) {
     if (block && !block.item?.luminosity) {
       this.game.world.removeLight(block)
-      console.log('removing light from', block!.x, block!.y)
     }
   }
 
@@ -109,7 +107,6 @@ export default class GamePage extends Vue {
     this.game.start()
   }
   clickBlock(block: Block, event: MouseEvent) {
-    console.log(event)
     if (event.shiftKey) {
       if (block.item) {
         block.item = null
