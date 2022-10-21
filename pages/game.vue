@@ -10,7 +10,7 @@
       <v-col cols="2"
         ><v-switch
           v-model="game.dark"
-          label="Dark (shift-click) to add lights"
+          label="Dark (shift-click to add lights)"
         ></v-switch
       ></v-col>
     </v-row>
@@ -67,6 +67,7 @@ export default class GamePage extends Vue {
   game = new Game(50, 25)
 
   mounted() {
+    this.generateWorld()
     this.game.start()
   }
 
