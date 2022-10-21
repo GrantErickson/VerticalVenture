@@ -24,7 +24,7 @@ export class World {
     // TODO: This needs to be more data driven at some level eventually.
     this.addBlockType(new EmptyBlockType())
     this.addBlockType(new LiquidBlockType('water', 'rgba(0,0,255,0.5)'))
-    this.addBlockType(new SolidBlockType('rock', 'rgba(0,0,0,.75)'))
+    this.addBlockType(new SolidBlockType('rock', '', 'dirtBlock.webp'))
 
     // Create the blocks, all empty
     for (let x = 0; x < width; x++) {

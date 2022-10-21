@@ -21,6 +21,8 @@
           v-for="block in row"
           v-bind:key="block.key"
           @click="clickBlock(block, $event)"
+          @mouseover="hoverBlock(block)"
+          @mouseleave="leaveBlock(block)"
           v-bind:class="{
             flowing: block.isFlowing,
             static: !block.isFlowing,
@@ -36,7 +38,8 @@
           <div
             class="fill"
             v-bind:style="{
-              backgroundColor: block.blockType.background,
+              background: block.blockType.background,
+              backgroundImage: `url(/${block.blockType.image})`,
               height: block.isFlowing ? '100%' : block.percentFilled + '%',
               width: block.isFlowing ? block.percentFilled + '%' : '100%',
             }"
@@ -85,6 +88,20 @@ export default class GamePage extends Vue {
         block.blockType = this.game.world.getBlockType('water')
     }
   }
+
+  hoverBlock(block: Block | null) {
+    if (block) {
+      //console.log('adding light to', block.x, block.y)
+      this.game.world.addLight(block)
+    }
+  }
+  leaveBlock(block: Block | null) {
+    if (block && !block.item?.luminosity) {
+      this.game.world.removeLight(block)
+      console.log('removing light from', block!.x, block!.y)
+    }
+  }
+
   generateWorld() {
     this.game.stop()
     this.game = new Game(50, 25)
@@ -149,6 +166,7 @@ export default class GamePage extends Vue {
   left: 0px;
   width: 100%;
   z-index: 500;
+  background-size: cover;
 }
 
 .block.flowing .fill {
@@ -158,6 +176,7 @@ export default class GamePage extends Vue {
   right: 50%;
   height: 100%;
   z-index: 500;
+  background-size: cover;
 }
 
 .block .item {

@@ -11,17 +11,20 @@ export abstract class BlockType {
   name: string
   nature: BlockNature
   background: string
+  image: string | null
   opacity: number
 
   constructor(
     name: string,
     nature: BlockNature,
     background: string,
-    opacity: number = 1
+    image: string | null,
+    opacity: number
   ) {
     this.name = name
     this.nature = nature
     this.background = background
+    this.image = image
     this.opacity = opacity
   }
 

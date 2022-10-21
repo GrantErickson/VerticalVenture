@@ -4,7 +4,7 @@ import { World } from './world'
 
 export class EmptyBlockType extends BlockType {
   constructor() {
-    super('empty', BlockNature.empty, 'transparent', 0)
+    super('empty', BlockNature.empty, 'transparent', null, 0)
   }
 
   process(block: Block, world: World): void {

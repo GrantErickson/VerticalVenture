@@ -3,8 +3,8 @@ import { World } from './world'
 import { Block } from './block'
 
 export class SolidBlockType extends BlockType {
-  constructor(name: string, background: string) {
-    super(name, BlockNature.solid, background, 0.8)
+  constructor(name: string, background: string, image: string) {
+    super(name, BlockNature.solid, background, image, 0.8)
   }
 
   process(block: Block, world: World): void {

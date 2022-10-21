@@ -11,14 +11,18 @@ export class LightProcessor {
   }
 
   process(): void {
-    console.log('Processing Lights')
+    //console.log('Processing Lights')
     // Clear brightnesses from all blocks
     this.#world.clearBrightness()
 
     // Iterate all the lights in the world
     for (const light of this.#world.lights) {
-      console.log('Processing light at ' + light.x + ', ' + light.y)
-      light.brightness = light.item!.luminosity
+      //console.log('Processing light at ' + light.x + ', ' + light.y)
+      if (light.item) {
+        light.brightness = light.item!.luminosity
+      } else {
+        light.brightness = 1.2
+      }
       let luminosity = light.brightness * this.propagationFactor
       this.processBlock(light.blockAbove, luminosity, Direction.north)
       this.processBlock(

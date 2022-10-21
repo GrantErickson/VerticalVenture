@@ -1,6 +1,7 @@
 import { nextTick } from 'vue/types/umd'
 import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
+import { Block } from './block'
 
 export class Game {
   world: World

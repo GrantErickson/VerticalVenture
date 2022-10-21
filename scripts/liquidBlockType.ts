@@ -7,7 +7,7 @@ export class LiquidBlockType extends BlockType {
   amountToEvaporate: number = 0.5
 
   constructor(name: string, background: string) {
-    super(name, BlockNature.liquid, background, 0.1)
+    super(name, BlockNature.liquid, background, null, 0.1)
   }
 
   process(block: Block, world: World): void {
