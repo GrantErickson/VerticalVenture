@@ -2,6 +2,14 @@
 
 A test of what it would take to create a web-based terraria clone.
 
+# Items to complete
+
+1. Update readme with more interesting info about the implementation
+2. Allow for generating based an a seed
+3. Show number of torches placed
+4. Show number of water cells left
+5. Maybe: Allow for changing the clumping of dirt on generation?
+
 ## Build Setup
 
 ```bash
