@@ -5,6 +5,7 @@ export class LightProcessor {
   #world: World
   propagationFactor = 0.8
   minimumLight = 0.1
+  scatterAmount = 0.2 // The amount the light scatters on the diagonals
 
   constructor(world: World) {
     this.#world = world
@@ -89,6 +90,16 @@ export class LightProcessor {
           luminosity,
           Direction.northEast
         )
+        this.processBlock(
+          block.blockRight,
+          luminosity * this.scatterAmount,
+          Direction.northEast
+        )
+        this.processBlock(
+          block.blockAbove,
+          luminosity * this.scatterAmount,
+          Direction.northEast
+        )
         break
       case Direction.east:
         this.processBlock(
@@ -107,6 +118,16 @@ export class LightProcessor {
         this.processBlock(
           block.blockRight?.blockBelow,
           luminosity,
+          Direction.southEast
+        )
+        this.processBlock(
+          block.blockRight,
+          luminosity * this.scatterAmount,
+          Direction.southEast
+        )
+        this.processBlock(
+          block.blockBelow,
+          luminosity * this.scatterAmount,
           Direction.southEast
         )
         break
@@ -129,6 +150,16 @@ export class LightProcessor {
           luminosity,
           Direction.southWest
         )
+        this.processBlock(
+          block.blockBelow,
+          luminosity * this.scatterAmount,
+          Direction.southWest
+        )
+        this.processBlock(
+          block.blockBelow,
+          luminosity * this.scatterAmount,
+          Direction.southWest
+        )
         break
       case Direction.west:
         this.processBlock(
@@ -147,6 +178,16 @@ export class LightProcessor {
         this.processBlock(
           block.blockLeft?.blockAbove,
           luminosity,
+          Direction.northWest
+        )
+        this.processBlock(
+          block.blockLeft,
+          luminosity * this.scatterAmount,
+          Direction.northWest
+        )
+        this.processBlock(
+          block.blockAbove,
+          luminosity * this.scatterAmount,
           Direction.northWest
         )
         break
