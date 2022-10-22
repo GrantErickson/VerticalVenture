@@ -9,25 +9,21 @@
           @click:append="newKey"
         ></v-text-field>
       </v-col>
-      <v-col><v-btn @click="generateWorld">Reset</v-btn></v-col>
-      <v-col><v-btn @click="addLotsOfWater">Add Water</v-btn></v-col>
+      <v-col cols="1" class="pt-6"
+        ><v-btn @click="generateWorld">Reset</v-btn></v-col
+      >
+      <v-col cols="2" class="pt-6"
+        ><v-btn @click="addLotsOfWater">Add Water</v-btn></v-col
+      >
       <v-col cols="2"
         ><v-switch v-model="game.drains" label="Drain"></v-switch
       ></v-col>
-      <v-col cols="2"
+      <v-col cols="3"
         ><v-switch
           v-model="game.dark"
           label="Dark (shift-click to add lights)"
         ></v-switch
       ></v-col>
-      <v-col
-        >Lights: {{ game.torches }}<br />
-        Water: {{ game.waterBlocks }}</v-col
-      >
-      <v-col
-        >Changes: {{ changes }}<br />
-        Blocks Lit: {{ game.blocksLit }}</v-col
-      >
     </v-row>
     <div class="world">
       <template v-for="row in game.world.blocks">
@@ -48,8 +44,6 @@
             left: block.x * 20 + 'px',
           }"
         >
-          <!-- {{ block.blockType.name }} -->
-
           <div
             class="fill"
             v-bind:style="{
@@ -69,6 +63,14 @@
         </div>
       </template>
     </div>
+    <v-row class="mt-2">
+      <v-col cols="1">Lights: {{ game.torches }}</v-col
+      ><v-col cols="2"> Water: {{ game.waterBlocks }}</v-col>
+      <v-col cols="2">Changes: {{ changes }}</v-col
+      ><v-col cols="2"> Blocks Lit: {{ game.blocksLit }}</v-col>
+      <v-col cols="1">FPS: {{ game.framesPerSecond }} </v-col
+      ><v-col cols="2">Frame Time: {{ game.msPerTick }} </v-col>
+    </v-row>
   </div>
 </template>
 

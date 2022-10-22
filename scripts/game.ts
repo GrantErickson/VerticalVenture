@@ -17,6 +17,11 @@ export class Game {
   torches: number = 0
   waterBlocks: number = 0
   blocksLit: number = 0
+  framesPerSecond: number = 0
+  fpsSecond: number = 0
+  frames: number = 0
+  msPerTick: number = 0
+  tickMsThisSecond: number = 0
 
   constructor(width: number, height: number) {
     this.world = new World(width, height)
@@ -41,6 +46,16 @@ export class Game {
 
   // Moves the game ahead by a number of seconds
   tick(seconds: number = 1) {
+    const msStart = performance.now()
+    if (this.fpsSecond != Math.floor(performance.now() / 1000)) {
+      this.framesPerSecond = this.frames
+      this.msPerTick =
+        Math.floor((this.tickMsThisSecond / this.frames) * 100) / 100
+      this.frames = 0
+      this.fpsSecond = Math.floor(performance.now() / 1000)
+      this.tickMsThisSecond = 0
+    }
+    this.frames++
     if (this.drains) {
       for (let x = 0; x < this.world.width; x++) {
         let block = this.world.getBlock(x, 0)!
@@ -72,6 +87,7 @@ export class Game {
         if (block.brightness > 0.1) this.blocksLit++
       }
     }
+    this.tickMsThisSecond += performance.now() - msStart
   }
 
   createRandomWorld(seed: string) {
