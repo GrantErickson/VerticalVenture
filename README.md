@@ -4,12 +4,6 @@ A test of what it would take to create a web-based terraria-style environment.
 
 Check it out [HERE](https://witty-bay-010181f1e.2.azurestaticapps.net)
 
-## Items to complete
-
-1. Update readme with more interesting info about the implementation
-2. Maybe: Allow for changing the clumping of dirt on generation?
-3. Other cool features
-
 ## History
 
 I wanted to see what it would take to create a little 2d digging game. There were a few aspects that seemed interesting to me. 
@@ -22,9 +16,19 @@ It is somewhat mesmerizing watching the water drain out of the caverns. It took 
 The lighting is simple ray tracing in 8 directions from the light source. The cardinal directions go straight and branch out falling off at a percentage based on the material of the block. The diagonals also propagate and also have some scattering to give a more realistic look.
 
 ## Games this could be
-1. See if you can drain all the water in the minimum of changes
-2. See if you can light the entire map with a minimum of lights
+1. See if you can drain all the water in the minimum of changes.
+2. See if you can light the entire map with a minimum of lights.
 3. See if you can fill the cavern with water with a minimum of additional blocks. 
+
+## Performance
+I added some performance counters to see how things were working. The water and lighting is somewhat costly. It would be hard to scale beyond this size without using better logic for these calculations. They are very nieve at this point. While Vue is fast, this pushes it a bit. Settling the water at the beginning is the most time consuming part of the process.
+
+## Other ideas
+1. Better world randomization
+2. Allow for changing the clumping of solid blocks on generation
+3. Make the water flow down the sides of the blocks and look more realistic
+4. Implement the rendering with three.js
+5. Create some kind of a server back end to hold best scores from any gamification of this.
 
 ## Build Setup
 
@@ -42,53 +46,3 @@ $ npm run start
 # generate static project
 $ npm run generate
 ```
-
-For detailed explanation on how things work, check out the [documentation](https://nuxtjs.org).
-
-## Special Directories
-
-You can create the following extra directories, some of which have special behaviors. Only `pages` is required; you can delete them if you don't want to use their functionality.
-
-### `assets`
-
-The assets directory contains your uncompiled assets such as Stylus or Sass files, images, or fonts.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/assets).
-
-### `components`
-
-The components directory contains your Vue.js components. Components make up the different parts of your page and can be reused and imported into your pages, layouts and even other components.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/components).
-
-### `layouts`
-
-Layouts are a great help when you want to change the look and feel of your Nuxt app, whether you want to include a sidebar or have distinct layouts for mobile and desktop.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/layouts).
-
-### `pages`
-
-This directory contains your application views and routes. Nuxt will read all the `*.vue` files inside this directory and setup Vue Router automatically.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/get-started/routing).
-
-### `plugins`
-
-The plugins directory contains JavaScript plugins that you want to run before instantiating the root Vue.js Application. This is the place to add Vue plugins and to inject functions or constants. Every time you need to use `Vue.use()`, you should create a file in `plugins/` and add its path to plugins in `nuxt.config.js`.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/plugins).
-
-### `static`
-
-This directory contains your static files. Each file inside this directory is mapped to `/`.
-
-Example: `/static/robots.txt` is mapped as `/robots.txt`.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/static).
-
-### `store`
-
-This directory contains your Vuex store files. Creating a file in this directory automatically activates Vuex.
-
-More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/store).
