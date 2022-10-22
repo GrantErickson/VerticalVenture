@@ -1,14 +1,30 @@
-# VerticalVenture
+# Vertical Venture
 
-A test of what it would take to create a web-based terraria clone.
+A test of what it would take to create a web-based terraria-style environment.
 
-# Items to complete
+Check it out [HERE](https://witty-bay-010181f1e.2.azurestaticapps.net)
+
+## Items to complete
 
 1. Update readme with more interesting info about the implementation
-2. Allow for generating based an a seed
-3. Show number of torches placed
-4. Show number of water cells left
-5. Maybe: Allow for changing the clumping of dirt on generation?
+2. Maybe: Allow for changing the clumping of dirt on generation?
+3. Other cool features
+
+## History
+
+I wanted to see what it would take to create a little 2d digging game. There were a few aspects that seemed interesting to me. 
+1. Creating a basic environment  (3h)
+2. Water in a block-style game (4h)
+3. Lighting using rudimentary ray-tracing techniques (4h)
+
+It is somewhat mesmerizing watching the water drain out of the caverns. It took a couple of tries to get it 'right.' It isn't right yet, but it is closish. The basic paradigm is to see if the block below is empty or has space and transfer up to 50% of the current volume of the block to that block. If that block is full or solid, then average the levels of the blocks on either side. Then activate all these blocks and the block above to be processed in the next round.
+
+The lighting is simple ray tracing in 8 directions from the light source. The cardinal directions go straight and branch out falling off at a percentage based on the material of the block. The diagonals also propagate and also have some scattering to give a more realistic look.
+
+## Games this could be
+1. See if you can drain all the water in the minimum of changes
+2. See if you can light the entire map with a minimum of lights
+3. See if you can fill the cavern with water with a minimum of additional blocks. 
 
 ## Build Setup
 
