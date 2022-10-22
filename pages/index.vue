@@ -20,6 +20,11 @@
           label="Dark (shift-click to add lights)"
         ></v-switch
       ></v-col>
+      <v-col
+        >Lights: {{ game.torches }}<br />
+        Water: {{ game.waterBlocks }}</v-col
+      >
+      <v-col>Changes: {{ changes }}</v-col>
     </v-row>
     <div class="world">
       <template v-for="row in game.world.blocks">
@@ -76,6 +81,7 @@ import { Item } from '~/scripts/item'
 export default class GamePage extends Vue {
   game = new Game(50, 25)
   gameSeed: string = ''
+  changes: number = 0
 
   mounted() {
     this.newKey()
@@ -118,6 +124,7 @@ export default class GamePage extends Vue {
     this.game = new Game(50, 25)
     this.game.createRandomWorld(this.gameSeed)
     this.game.start()
+    this.changes = 0
   }
   clickBlock(block: Block, event: MouseEvent) {
     if (event.shiftKey) {
@@ -140,6 +147,7 @@ export default class GamePage extends Vue {
         block.percentFilled = 100
         block.isFlowing = false
       }
+      this.changes++
       this.game.world.addActiveBlock(block)
       this.game.world.addActiveBlock(block.blockBelow)
       this.game.world.addActiveBlock(block.blockLeft)
