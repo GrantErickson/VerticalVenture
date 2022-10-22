@@ -96,13 +96,6 @@ export default class GamePage extends Vue {
     this.game.start()
   }
 
-  addWater() {
-    let block = this.game.world.getBlock(5, 20)!
-    block.blockType = this.game.world.getBlockType('water')
-    block.percentFilled = 100
-    this.game.world.addActiveBlock(block)
-  }
-
   addLotsOfWater() {
     for (let x = 0; x < this.game.world.width; x++) {
       let block = this.game.world.getBlock(x, this.game.world.height - 1)!
