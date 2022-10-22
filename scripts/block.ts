@@ -69,7 +69,7 @@ export class Block {
     let bestCount = 0
     let bestType: BlockType | null = null
     Object.entries(types).forEach((type) => {
-      if (type[1]! > bestCount && type[0] !== 'empty') {
+      if ((type[1] as number) > bestCount && type[0] !== 'empty') {
         bestCount = type[1] as number
         bestType = this.#world.getBlockType(type[0])
       }
