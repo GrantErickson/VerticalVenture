@@ -126,14 +126,10 @@ export class Game {
         let block = this.world.getBlock(x, y)!
         if (block.blockType.nature === BlockNature.solid) {
           if (
-            block.blockLeft &&
-            block.blockLeft.blockType.nature !== BlockNature.solid &&
-            block.blockRight &&
-            block.blockRight.blockType.nature !== BlockNature.solid &&
-            block.blockBelow &&
-            block.blockBelow.blockType.nature !== BlockNature.solid &&
-            block.blockAbove &&
-            block.blockAbove.blockType.nature !== BlockNature.solid
+            block.blockLeft?.blockType.nature !== BlockNature.solid &&
+            block.blockRight?.blockType.nature !== BlockNature.solid &&
+            block.blockBelow?.blockType.nature !== BlockNature.solid &&
+            block.blockAbove?.blockType.nature !== BlockNature.solid
           ) {
             block.blockBelow?.blockType == block.blockType
             block.blockType = this.world.getBlockType('empty')
