@@ -1,9 +1,16 @@
 <template>
   <div>
     <v-row>
-      <v-col><v-btn @click="addWater">Water</v-btn></v-col>
-      <v-col><v-btn @click="addLotsOfWater">Lots of Water</v-btn></v-col>
-      <v-col><v-btn @click="generateWorld">Generate</v-btn></v-col>
+      <v-col cols="2"
+        ><v-text-field
+          v-model="gameSeed"
+          label="Seed"
+          append-icon="mdi-refresh"
+          @click:append="newKey"
+        ></v-text-field>
+      </v-col>
+      <v-col><v-btn @click="generateWorld">Reset</v-btn></v-col>
+      <v-col><v-btn @click="addLotsOfWater">Add Water</v-btn></v-col>
       <v-col cols="2"
         ><v-switch v-model="game.drains" label="Drain"></v-switch
       ></v-col>
@@ -68,8 +75,14 @@ import { Item } from '~/scripts/item'
 @Component({})
 export default class GamePage extends Vue {
   game = new Game(50, 25)
+  gameSeed: string = ''
 
   mounted() {
+    this.newKey()
+  }
+
+  newKey() {
+    this.gameSeed = Math.random().toString(36).split('.')[1].substring(0, 4)
     this.generateWorld()
     this.game.start()
   }
@@ -103,7 +116,7 @@ export default class GamePage extends Vue {
   generateWorld() {
     this.game.stop()
     this.game = new Game(50, 25)
-    this.game.createRandomWorld()
+    this.game.createRandomWorld(this.gameSeed)
     this.game.start()
   }
   clickBlock(block: Block, event: MouseEvent) {

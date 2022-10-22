@@ -2,6 +2,7 @@ import { nextTick } from 'vue/types/umd'
 import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
 import { Block } from './block'
+import { RandomSeed } from 'random-seed'
 
 export class Game {
   world: World
@@ -54,19 +55,20 @@ export class Game {
     }
   }
 
-  createRandomWorld() {
+  createRandomWorld(seed: string) {
+    var rand = require('random-seed').create(seed)
     for (let x = 0; x < this.world.width; x++) {
       for (let y = 0; y < this.world.height; y++) {
         let block = this.world.getBlock(x, y)!
         let newType: BlockType | null = null
         let surroundingBlockType = block.surroundingBlockType
         if (surroundingBlockType) {
-          if (Math.random() > 0.3) {
+          if (rand.random() > 0.3) {
             newType = surroundingBlockType
           }
         }
         if (!newType) {
-          let seed = Math.random()
+          let seed = rand.random()
           if (seed > 0.8) {
             newType = this.world.getBlockType('water')
           } else if (seed > 0.4) {
