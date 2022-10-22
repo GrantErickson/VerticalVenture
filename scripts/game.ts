@@ -16,6 +16,7 @@ export class Game {
   dark: boolean = false
   torches: number = 0
   waterBlocks: number = 0
+  blocksLit: number = 0
 
   constructor(width: number, height: number) {
     this.world = new World(width, height)
@@ -58,6 +59,7 @@ export class Game {
     // Count torches and water blocks
     this.torches = 0
     this.waterBlocks = 0
+    this.blocksLit = 0
     for (let x = 0; x < this.world.width; x++) {
       for (let y = 0; y < this.world.height; y++) {
         let block = this.world.getBlock(x, y)!
@@ -67,6 +69,7 @@ export class Game {
           block.percentFilled > 10
         )
           this.waterBlocks++
+        if (block.brightness > 0.1) this.blocksLit++
       }
     }
   }

@@ -24,7 +24,10 @@
         >Lights: {{ game.torches }}<br />
         Water: {{ game.waterBlocks }}</v-col
       >
-      <v-col>Changes: {{ changes }}</v-col>
+      <v-col
+        >Changes: {{ changes }}<br />
+        Blocks Lit: {{ game.blocksLit }}</v-col
+      >
     </v-row>
     <div class="world">
       <template v-for="row in game.world.blocks">
