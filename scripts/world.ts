@@ -11,6 +11,8 @@ export class World {
   width: number
   height: number
   activeBlocks: Block[] = []
+  addedActiveBlocks: Block[] = []
+  removedActiveBlocks: Block[] = []
   lights: Block[] = []
   private blockTypes = new Map<string, BlockType>()
   lightProcessor: LightProcessor
@@ -51,17 +53,17 @@ export class World {
   }
 
   addActiveBlock(block: Block | null) {
-    if (block && this.activeBlocks.indexOf(block) === -1) {
-      this.activeBlocks.push(block)
+    if (block && this.addedActiveBlocks.indexOf(block) === -1) {
+      this.addedActiveBlocks.push(block)
       block.isActive = true
     }
   }
   removeActiveBlock(block: Block | null) {
     if (block) {
-      let index = this.activeBlocks.indexOf(block)
+      let index = this.removedActiveBlocks.indexOf(block)
       if (index > -1) {
-        this.activeBlocks.splice(index, 1)
-        block.isActive = false
+        this.removedActiveBlocks.splice(index, 1)
+        //block.isActive = false
       }
     }
   }
@@ -90,6 +92,17 @@ export class World {
     this.activeBlocks.forEach((block) => {
       block.blockType.process(block, this)
     })
+    // Reconcile added and removed blocks
+    // This is necessary so we don't remove blocks that should be active.
+    this.activeBlocks = this.activeBlocks.filter(
+      (block) => this.removedActiveBlocks.indexOf(block) === -1
+    )
+    this.activeBlocks = this.activeBlocks.concat(this.addedActiveBlocks)
+    for (const block of this.removedActiveBlocks) {
+      block.isActive = false
+    }
+    this.addedActiveBlocks = []
+    this.removedActiveBlocks = []
   }
 
   clearBrightness(brightness = 0) {
