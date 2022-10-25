@@ -43,6 +43,8 @@ export class LiquidBlockType extends BlockType {
       } else {
         blockBelowFilled = true
       }
+
+      // If the block below is filled, go ahead and flow out to the sides.
       if (blockBelowFilled) {
         block.isFlowing = false
         // Average the amount of liquid to the left and right.
@@ -86,7 +88,16 @@ export class LiquidBlockType extends BlockType {
         world.removeActiveBlock(block)
       }
     }
+
     if (!hasChanged) {
+      if (
+        block.blockAbove &&
+        block.percentFilled < 100 &&
+        block.blockAbove.percentFilled > 0 &&
+        block.blockAbove.blockType.nature === BlockNature.liquid
+      ) {
+        world.addActiveBlock(block.blockAbove)
+      }
       // If nothing has changed, then we are done.
       world.removeActiveBlock(block)
       block.isFlowing = false

@@ -31,6 +31,7 @@
           class="block"
           v-for="block in row"
           v-bind:key="block.key"
+          :id="block.key"
           @click="clickBlock(block, $event)"
           @mouseover="hoverBlock(block)"
           @mouseleave="leaveBlock(block)"
@@ -39,7 +40,6 @@
             static: !block.isFlowing,
           }"
           v-bind:style="{
-            borderWidth1: block.isActive ? '1px' : '0px',
             top: game.heightInPx - (block.y + 1) * 20 + 'px',
             left: block.x * 20 + 'px',
           }"

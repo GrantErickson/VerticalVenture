@@ -59,12 +59,8 @@ export class World {
     }
   }
   removeActiveBlock(block: Block | null) {
-    if (block) {
-      let index = this.removedActiveBlocks.indexOf(block)
-      if (index > -1) {
-        this.removedActiveBlocks.splice(index, 1)
-        //block.isActive = false
-      }
+    if (block && this.removedActiveBlocks.indexOf(block) === -1) {
+      this.removedActiveBlocks.push(block)
     }
   }
 
@@ -94,13 +90,23 @@ export class World {
     })
     // Reconcile added and removed blocks
     // This is necessary so we don't remove blocks that should be active.
-    this.activeBlocks = this.activeBlocks.filter(
-      (block) => this.removedActiveBlocks.indexOf(block) === -1
-    )
-    this.activeBlocks = this.activeBlocks.concat(this.addedActiveBlocks)
+    // Remove any remove blocks that are remaining active
+
     for (const block of this.removedActiveBlocks) {
-      block.isActive = false
+      let index = this.activeBlocks.indexOf(block)
+      if (index > -1) {
+        this.activeBlocks.splice(index, 1)
+        block.isActive = false
+      }
     }
+
+    for (const block of this.addedActiveBlocks) {
+      if (this.activeBlocks.indexOf(block) === -1) {
+        this.activeBlocks.push(block)
+      }
+      block.isActive = true
+    }
+    console.log(this.activeBlocks.length)
     this.addedActiveBlocks = []
     this.removedActiveBlocks = []
   }
