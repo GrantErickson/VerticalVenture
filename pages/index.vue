@@ -28,21 +28,29 @@
         ><v-switch v-model="game.isScrolling" label="Scroll"></v-switch
       ></v-col>
     </v-row>
-    <div class="world" :class="{ scrolling: game.isScrolling }">
+    <div
+      class="world"
+      :class="{ scrolling: game.isScrolling }"
+      :style="{
+        width: game.width * game.blockSize + 'px',
+        height:
+          (game.height - (game.isScrolling ? 1 : 0)) * game.blockSize + 'px',
+      }"
+    >
       <template v-for="row in game.world.blocks">
         <div
           class="block"
           v-for="block in row"
-          v-bind:key="block.key"
+          :key="block.key"
           :id="block.key"
           @click="clickBlock(block, $event)"
           @mouseover="hoverBlock(block)"
           @mouseleave="leaveBlock(block)"
-          v-bind:class="{
+          :class="{
             flowing: block.isFlowing,
             static: !block.isFlowing,
           }"
-          v-bind:style="{
+          :style="{
             top:
               game.heightInPx - (block.y + 1) * 20 - game.scrollOffset + 'px',
             left: block.x * 20 + 'px',
@@ -176,13 +184,10 @@ export default class GamePage extends Vue {
 .world {
   position: relative;
   background-image: url('https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/0be993e7-c7f4-46f2-aab1-46cbf7c572c5/d3kpvx8-b5b3fe3f-ea8c-4fe0-a26f-20ba52385a01.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzBiZTk5M2U3LWM3ZjQtNDZmMi1hYWIxLTQ2Y2JmN2M1NzJjNVwvZDNrcHZ4OC1iNWIzZmUzZi1lYThjLTRmZTAtYTI2Zi0yMGJhNTIzODVhMDEuanBnIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.sFTYZyh8xXS4wEmQ7SeoafcJFdRVL3k2WOHiefPFADQ');
-  width: 1000px;
-  height: 500px;
   overflow: auto;
 }
 .world.scrolling {
   overflow: hidden;
-  height: 480px;
 }
 
 .block.static .fill {
