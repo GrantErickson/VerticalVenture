@@ -1,6 +1,7 @@
 import { BlockType } from './blockType'
 import { World } from './world'
 import { Item } from './item'
+import { v4 as uuid } from 'uuid'
 
 export class Block {
   #world: World
@@ -12,12 +13,14 @@ export class Block {
   isFlowing: boolean = false
   brightness: number = 0
   #item: Item | null = null
+  readonly key: string
 
   constructor(world: World, x: number, y: number, blockType: BlockType) {
     this.#world = world
     this.x = x
     this.y = y
     this.#blockType = blockType
+    this.key = uuid()
   }
 
   get blockType(): BlockType {
@@ -55,7 +58,7 @@ export class Block {
     return this.#world.getBlock(this.x + 1, this.y)
   }
 
-  get key(): string {
+  get location(): string {
     return `${this.x},${this.y}`
   }
 

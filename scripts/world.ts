@@ -78,6 +78,35 @@ export class World {
     }
   }
 
+  removeRow(y: number) {
+    for (let x = 0; x < this.width; x++) {
+      if (this.blocks[x][y].isActive) {
+        this.removeActiveBlock(this.blocks[x][y])
+      }
+      if (this.blocks[x][y].item) {
+        this.removeLight(this.blocks[x][y])
+      }
+      this.blocks[x].pop()
+    }
+    this.processActiveBlocks()
+  }
+  insertRow(y: number) {
+    const row = []
+    for (let x = 0; x < this.width; x++) {
+      row.push(new Block(this, x, y, this.blockTypes.get('empty')!))
+    }
+    // Update the y position of all blocks above the inserted row
+    for (let x1 = 0; x1 < this.width; x1++) {
+      for (let y1 = this.height - 2; y1 >= y; y1--) {
+        this.blocks[x1][y1].y++
+      }
+    }
+    // Insert the row in blocks
+    for (let x = 0; x < this.width; x++) {
+      this.blocks[x].splice(y, 0, row[x])
+    }
+  }
+
   getBlockType(name: string): BlockType {
     let result = this.blockTypes.get(name)
     if (!result) throw new Error(`Block type ${name} not found`)
@@ -106,7 +135,6 @@ export class World {
       }
       block.isActive = true
     }
-    console.log(this.activeBlocks.length)
     this.addedActiveBlocks = []
     this.removedActiveBlocks = []
   }

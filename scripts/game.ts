@@ -3,6 +3,7 @@ import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
 import { Block } from './block'
 import { RandomSeed } from 'random-seed'
+import { debug } from 'webpack'
 
 export class Game {
   world: World
@@ -22,8 +23,11 @@ export class Game {
   frames: number = 0
   msPerTick: number = 0
   tickMsThisSecond: number = 0
+  scrollOffset: number = 1
+  private scrollIndex: ReturnType<typeof setTimeout> | null = null
+  private randomizer: any = null
 
-  constructor(width: number, height: number) {
+  constructor(public width: number, public height: number) {
     this.world = new World(width, height)
     this.heightInPx = height * this.blockSize
   }
@@ -42,6 +46,34 @@ export class Game {
     if (!this.IsRunning) return
     clearInterval(this.intervalIndex!)
     this.intervalIndex = null
+  }
+
+  get isScrolling() {
+    return this.scrollIndex !== null
+  }
+  set isScrolling(value: boolean) {
+    if (value) {
+      if (this.scrollIndex !== null) return
+      this.scrollOffset = 0
+      this.scrollIndex = setInterval(this.scroll.bind(this), 100)
+    } else {
+      if (this.scrollIndex === null) return
+      clearInterval(this.scrollIndex)
+      this.scrollIndex = null
+      this.scrollOffset = 0
+    }
+  }
+
+  scroll() {
+    this.scrollOffset += 1
+    if (this.scrollOffset > this.blockSize) {
+      this.scrollOffset = 0
+      // remove the last row from the world
+      this.world.removeRow(this.height - 1)
+      // add a new row to the bottom of the world
+      this.world.insertRow(0)
+      this.createRandomRow(0)
+    }
   }
 
   // Moves the game ahead by a number of seconds
@@ -63,7 +95,6 @@ export class Game {
           block.blockType = this.world.getBlockType('empty')
       }
     }
-    //console.log(this.world.activeBlocks.length)
     this.gameTime += this.gameSpeed / 1000
     this.world.processActiveBlocks()
     if (this.dark) {
@@ -91,31 +122,35 @@ export class Game {
   }
 
   createRandomWorld(seed: string) {
-    var rand = require('random-seed').create(seed)
-    for (let x = 0; x < this.world.width; x++) {
-      for (let y = 0; y < this.world.height; y++) {
-        let block = this.world.getBlock(x, y)!
-        let newType: BlockType | null = null
-        let surroundingBlockType = block.surroundingBlockType
-        if (surroundingBlockType) {
-          if (rand.random() > 0.3) {
-            newType = surroundingBlockType
-          }
-        }
-        if (!newType) {
-          let seed = rand.random()
-          if (seed > 0.8) {
-            newType = this.world.getBlockType('water')
-          } else if (seed > 0.4) {
-            newType = this.world.getBlockType('rock')
-          } else {
-            newType = block.blockType
-          }
-        }
-        block.blockType = newType
-      }
+    this.randomizer = require('random-seed').create(seed)
+    for (let y = 0; y < this.world.height; y++) {
+      this.createRandomRow(y)
     }
-    this.settleBlocks()
+    this.settleBlocks
+  }
+
+  createRandomRow(y: number) {
+    for (let x = 0; x < this.world.width; x++) {
+      let block = this.world.getBlock(x, y)!
+      let newType: BlockType | null = null
+      let surroundingBlockType = block.surroundingBlockType
+      if (surroundingBlockType) {
+        if (this.randomizer.random() > 0.3) {
+          newType = surroundingBlockType
+        }
+      }
+      if (!newType) {
+        let seed = this.randomizer.random()
+        if (seed > 0.8) {
+          newType = this.world.getBlockType('water')
+        } else if (seed > 0.4) {
+          newType = this.world.getBlockType('rock')
+        } else {
+          newType = block.blockType
+        }
+      }
+      block.blockType = newType
+    }
   }
 
   settleBlocks() {
