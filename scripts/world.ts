@@ -80,8 +80,15 @@ export class World {
 
   removeRow(y: number) {
     for (let x = 0; x < this.width; x++) {
+      if (this.blocks[x][y].isActive) {
+        this.removeActiveBlock(this.blocks[x][y])
+      }
+      if (this.blocks[x][y].item) {
+        this.removeLight(this.blocks[x][y])
+      }
       this.blocks[x].pop()
     }
+    this.processActiveBlocks()
   }
   insertRow(y: number) {
     const row = []

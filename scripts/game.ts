@@ -54,12 +54,13 @@ export class Game {
   set isScrolling(value: boolean) {
     if (value) {
       if (this.scrollIndex !== null) return
-      this.scrollOffset = 1
+      this.scrollOffset = 0
       this.scrollIndex = setInterval(this.scroll.bind(this), 100)
     } else {
       if (this.scrollIndex === null) return
       clearInterval(this.scrollIndex)
       this.scrollIndex = null
+      this.scrollOffset = 0
     }
   }
 
