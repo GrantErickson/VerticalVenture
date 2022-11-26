@@ -4,7 +4,7 @@ import { Block } from './block'
 
 export class LiquidBlockType extends BlockType {
   percentToFlowDown: number = 50
-  amountToEvaporate: number = 0.5
+  amountToEvaporate: number = 0.1
 
   constructor(name: string, background: string) {
     super(name, BlockNature.liquid, background, null, 0.1)
@@ -32,21 +32,35 @@ export class LiquidBlockType extends BlockType {
           amountToFlow = 100 - blockBelow.percentFilled
           blockBelowFilled = true
         }
+        // Flow based on where it is coming from
         block.percentFilled -= amountToFlow
-        blockBelow.percentFilled += amountToFlow
+        let belowLeft =
+          blockBelow.blockLeft &&
+          blockBelow.blockLeft.blockType.nature === BlockNature.solid
+        let belowRight =
+          blockBelow.blockRight &&
+          blockBelow.blockRight.blockType.nature === BlockNature.solid
+        if ((belowLeft && belowRight) || (!belowLeft && !belowRight)) {
+          blockBelow.percentFilled += amountToFlow
+        } else if (belowLeft) {
+          blockBelow.percentFilledLeft += amountToFlow
+        } else if (belowRight) {
+          blockBelow.percentFilledRight += amountToFlow
+        }
 
         // TODO: Handle when it is another type of liquid
         blockBelow.blockType = block.blockType
         world.addActiveBlock(blockBelow)
         hasChanged = true
-        blockBelow.isFlowing = true
+        block.isFlowingDown = true
+        blockBelow.isFlowingDown = true
       } else {
         blockBelowFilled = true
       }
 
       // If the block below is filled, go ahead and flow out to the sides.
       if (blockBelowFilled) {
-        block.isFlowing = false
+        block.isFlowingDown = false
         // Average the amount of liquid to the left and right.
         let leftBlock = block.blockLeft
         let rightBlock = block.blockRight
@@ -100,7 +114,7 @@ export class LiquidBlockType extends BlockType {
       }
       // If nothing has changed, then we are done.
       world.removeActiveBlock(block)
-      block.isFlowing = false
+      block.isFlowingDown = false
     } else {
       world.addActiveBlock(block.blockAbove)
       world.addActiveBlock(block.blockLeft)
@@ -110,7 +124,7 @@ export class LiquidBlockType extends BlockType {
 
   changeType(block: Block, world: World): void {
     world.addActiveBlock(block)
-    block.isFlowing = false
+    block.isFlowingDown = false
     if (block.percentFilled == 0) {
       block.percentFilled = 100
     }

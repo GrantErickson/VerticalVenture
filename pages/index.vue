@@ -57,17 +57,39 @@
           }"
         >
           <div
-            class="fill"
+            v-if="block.blockType.nature == 1"
+            class="solid-fill"
             v-bind:style="{
               background: block.blockType.background,
               backgroundImage: `url(/${block.blockType.image})`,
-              height: block.isFlowing ? '100%' : block.percentFilled + '%',
-              width: block.isFlowing ? block.percentFilled + '%' : '100%',
+            }"
+          ></div>
+          <div
+            v-if="block.blockType.nature == 2"
+            class="left-liquid-fill"
+            v-bind:style="{
+              background: block.blockType.background,
+              height: block.isFlowingDown ? '100%' : block.percentFilled + '%',
+              width: block.isFlowingDown
+                ? block.percentFilledLeft + '%'
+                : '50%',
+            }"
+          ></div>
+          <div
+            v-if="block.blockType.nature == 2"
+            class="right-liquid-fill"
+            v-bind:style="{
+              background: block.blockType.background,
+              height: block.isFlowingDown ? '100%' : block.percentFilled + '%',
+              width: block.isFlowingDown
+                ? block.percentFilledRight + '%'
+                : '50%',
             }"
           ></div>
           <div v-if="block.item" class="item">
             {{ block.item ? '🔦' : '' }}
           </div>
+          <!-- <div v-if="block.isFlowingDown" class="item">👍</div> -->
           <div
             class="overlay"
             v-bind:style="{ opacity: 0.97 - block.brightness }"
@@ -148,14 +170,14 @@ export default class GamePage extends Vue {
       if (block.blockType.name == 'water') {
         block.blockType = this.game.world.getBlockType('rock')
         block.percentFilled = 100
-        block.isFlowing = false
+        block.isFlowingDown = false
       } else if (block.blockType.name == 'rock') {
         block.blockType = this.game.world.getBlockType('empty')
         block.percentFilled = 0
       } else if (block.blockType.name == 'empty') {
         block.blockType = this.game.world.getBlockType('rock')
         block.percentFilled = 100
-        block.isFlowing = false
+        block.isFlowingDown = false
       }
       this.changes++
       this.game.world.addActiveBlock(block)
@@ -190,23 +212,27 @@ export default class GamePage extends Vue {
   overflow: hidden;
 }
 
-.block.static .fill {
+.block.static .solid-fill {
   position: absolute;
   bottom: 0px;
   left: 0px;
   width: 100%;
+  height: 100%;
   z-index: 500;
   background-size: cover;
 }
 
-.block.flowing .fill {
+div.left-liquid-fill {
   position: absolute;
-  top: 0px;
-  left: 50%;
-  right: 50%;
-  height: 100%;
+  bottom: 0;
+  left: 0;
   z-index: 500;
-  background-size: cover;
+}
+div.right-liquid-fill {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  z-index: 501;
 }
 
 .block .item {

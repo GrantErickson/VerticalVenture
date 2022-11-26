@@ -8,9 +8,18 @@ export class Block {
   public x: number
   public y: number
   #blockType: BlockType
-  percentFilled: number = 0
+
+  get percentFilled(): number {
+    return this.percentFilledLeft + this.percentFilledRight
+  }
+  set percentFilled(percent: number) {
+    this.percentFilledLeft = percent / 2
+    this.percentFilledRight = percent / 2
+  }
+  percentFilledLeft: number = 0
+  percentFilledRight: number = 0
   isActive: boolean = false
-  isFlowing: boolean = false
+  isFlowingDown: boolean = false
   brightness: number = 0
   #item: Item | null = null
   readonly key: string
