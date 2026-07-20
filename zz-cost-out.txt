@@ -1,0 +1,19 @@
+=== wall clock, median of 3 runs of 60 steps after 20 warmup ===
+{"name":"(a) 4 per cell, 2 cells/block","grid":"100x50","openCells":4336,"waterCells":2602,"particles":10408,"spacing":0.5,"msPerStepRuns":[8.247,7.872,7.857],"msPerStep":7.872,"meanSpeedAtEnd":0.417}
+{"name":"(b) 9 per cell, 2 cells/block","grid":"100x50","openCells":4336,"waterCells":2602,"particles":23418,"spacing":0.3333333333333333,"msPerStepRuns":[20.297,18.879,19.03],"msPerStep":19.03,"meanSpeedAtEnd":0.348}
+{"name":"(c) 16 per cell, 2 cells/block","grid":"100x50","openCells":4336,"waterCells":2602,"particles":41632,"spacing":0.25,"msPerStepRuns":[41.731,41.209,42.329],"msPerStep":41.731,"meanSpeedAtEnd":0.587}
+{"name":"(d) 4 per cell, 3 cells/block","grid":"150x75","openCells":9858,"waterCells":5915,"particles":23660,"spacing":0.5,"msPerStepRuns":[18.682,18.566,19.258],"msPerStep":18.682,"meanSpeedAtEnd":0.478}
+{"name":"(e) 4 per cell, 2 cells/block, 100% water (count control)","grid":"100x50","openCells":4336,"waterCells":4336,"particles":17344,"spacing":0.5,"msPerStepRuns":[13.843,13.949,13.241],"msPerStep":13.843,"meanSpeedAtEnd":0.302}
+{"name":"(f) 9 per cell, 3 cells/block","grid":"150x75","openCells":9858,"waterCells":5915,"particles":53235,"spacing":0.3333333333333333,"msPerStepRuns":[46.255,46.488,43.687],"msPerStep":46.255,"meanSpeedAtEnd":0.449}
+{"name":"(g) 25 per cell, 2 cells/block","grid":"100x50","openCells":4336,"waterCells":2602,"particles":65050,"spacing":0.2,"msPerStepRuns":[86.086,85.519,83.113],"msPerStep":85.519,"meanSpeedAtEnd":0.909}
+
+=== phase breakdown (instrumented; adds wrapper overhead) ===
+(a) 4 per cell, 2 cells/block -> {"integrate":0.571,"pushParticlesApart":3.864,"transferToGrid":0.953,"updateDensity":0.252,"applyGravity":0.036,"solveIncompressibility":2.012,"transferFromGrid":0.945,"__instrumentedTotal":8.644,"__particles":10408}
+(b) 9 per cell, 2 cells/block -> {"integrate":1.305,"pushParticlesApart":12.495,"transferToGrid":1.962,"updateDensity":0.564,"applyGravity":0.037,"solveIncompressibility":2.02,"transferFromGrid":2.261,"__instrumentedTotal":20.657,"__particles":23418}
+(c) 16 per cell, 2 cells/block -> {"integrate":2.431,"pushParticlesApart":31.799,"transferToGrid":3.548,"updateDensity":1.029,"applyGravity":0.038,"solveIncompressibility":2.104,"transferFromGrid":3.892,"__instrumentedTotal":44.858,"__particles":41632}
+(d) 4 per cell, 3 cells/block -> {"integrate":1.404,"pushParticlesApart":9.176,"transferToGrid":2.247,"updateDensity":0.577,"applyGravity":0.076,"solveIncompressibility":4.255,"transferFromGrid":2.218,"__instrumentedTotal":19.963,"__particles":23660}
+(e) 4 per cell, 2 cells/block, 100% water (count control) -> {"integrate":0.989,"pushParticlesApart":6.217,"transferToGrid":1.504,"updateDensity":0.415,"applyGravity":0.037,"solveIncompressibility":3.186,"transferFromGrid":1.477,"__instrumentedTotal":13.833,"__particles":17344}
+(f) 9 per cell, 3 cells/block -> {"integrate":3.328,"pushParticlesApart":28.733,"transferToGrid":5.099,"updateDensity":1.343,"applyGravity":0.082,"solveIncompressibility":4.615,"transferFromGrid":5.185,"__instrumentedTotal":48.399,"__particles":53235}
+(g) 25 per cell, 2 cells/block -> {"integrate":3.905,"pushParticlesApart":65.71,"transferToGrid":5.473,"updateDensity":1.557,"applyGravity":0.036,"solveIncompressibility":1.999,"transferFromGrid":6.215,"__instrumentedTotal":84.908,"__particles":65050}
+
+node v22.18.0

@@ -16,6 +16,13 @@ export class Block {
   isActive: boolean = false
   isFlowing: boolean = false
   brightness: number = 0
+  // Both maintained by WaterProcessor, and shared by every block of a body, so
+  // that a renderer can shade water by the body it belongs to rather than by
+  // what happens to be stacked in this one column.
+  /** Height of the surface of the body this block's water belongs to. */
+  waterSurface: number = 0
+  /** Distance from that surface down to the deepest point of the body. */
+  waterDepth: number = 0
   private _item: Item | null = null
   readonly key: string
 

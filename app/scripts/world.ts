@@ -4,6 +4,7 @@ import { EmptyBlockType } from './emptyBlockType'
 import { LiquidBlockType } from './liquidBlockType'
 import { SolidBlockType } from './solidBlockType'
 import { LightProcessor } from './lightProcessor'
+import { WaterProcessor } from './waterProcessor'
 
 export class World {
   // 0,0 is lower left corner.
@@ -16,6 +17,7 @@ export class World {
   lights: Block[] = []
   private blockTypes = new Map<string, BlockType>()
   lightProcessor: LightProcessor
+  waterProcessor: WaterProcessor
 
   constructor(width: number, height: number) {
     this.width = width
@@ -37,10 +39,15 @@ export class World {
     }
 
     this.lightProcessor = new LightProcessor(this)
+    this.waterProcessor = new WaterProcessor(this)
   }
 
   processLighting() {
     this.lightProcessor.process()
+  }
+
+  processWater() {
+    this.waterProcessor.process()
   }
 
   addBlockType(blockType: BlockType) {

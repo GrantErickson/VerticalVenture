@@ -11,6 +11,20 @@ export class Game {
   heightInPx: number
   blockSize: number = 20
   drains: boolean = false
+  /**
+   * Ticks between water steps. Water moves a whole block at a time, so this is
+   * the dial for how fast it falls and how slowly a cavern empties — at the
+   * default 10ms tick, 5 puts it at 20 blocks a second. Stepping it every tick
+   * drains a world in a quarter of a second, which is far too quick to watch.
+   */
+  waterTicks: number = 5
+  private ticksSinceWater = 0
+  /**
+   * How much of a block each hole in the floor lets out per water step, in
+   * percent. Emptying the whole block at once makes the level fall in a few
+   * visible jumps however slowly the water itself is stepped.
+   */
+  drainRate: number = 20
   dark: boolean = false
   torches: number = 0
   waterBlocks: number = 0
@@ -88,15 +102,15 @@ export class Game {
       this.tickMsThisSecond = 0
     }
     this.frames++
-    if (this.drains) {
-      for (let x = 0; x < this.world.width; x++) {
-        let block = this.world.getBlock(x, 0)!
-        if (block.blockType.nature == BlockNature.liquid)
-          block.blockType = this.world.getBlockType('empty')
-      }
-    }
     this.gameTime += this.gameSpeed / 1000
     this.world.processActiveBlocks()
+    // Draining is part of a water step rather than of every tick, so that the
+    // rate water leaves by keeps pace with the rate it can flow in at.
+    if (++this.ticksSinceWater >= this.waterTicks) {
+      this.ticksSinceWater = 0
+      if (this.drains) this.drain()
+      this.world.processWater()
+    }
     if (this.dark) {
       this.world.processLighting()
     } else {
@@ -119,6 +133,19 @@ export class Game {
       }
     }
     this.tickMsThisSecond += performance.now() - msStart
+  }
+
+  /** Let a little water out of every hole in the floor of the world. */
+  private drain() {
+    for (let x = 0; x < this.world.width; x++) {
+      const block = this.world.getBlock(x, 0)!
+      if (block.blockType.nature !== BlockNature.liquid) continue
+      block.percentFilled -= this.drainRate
+      // Anything the water above it owes gets settled by the next water step,
+      // which pulls the body of water down to meet what has left.
+      if (block.percentFilled <= 0)
+        block.blockType = this.world.getBlockType('empty')
+    }
   }
 
   createRandomWorld(seed: string) {

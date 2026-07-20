@@ -19,28 +19,19 @@
       <v-col cols="2">
         <v-switch v-model="drains" label="Drain" hide-details />
       </v-col>
-      <v-col cols="3">
-        <v-switch
-          v-model="dark"
-          label="Dark (shift-click to add lights)"
-          hide-details
-        />
-      </v-col>
-      <v-col cols="2">
-        <v-switch v-model="scrolling" label="Scroll" hide-details />
+      <v-col cols="5">
+        <span class="text-caption text-medium-emphasis">
+          Click to dig or fill a block.
+        </span>
       </v-col>
     </v-row>
 
-    <RendererTabs :active="active" :blurb="blurb" />
+    <RendererTabs active="fluid" :blurb="blurb" />
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  /** Which renderer page is currently showing. */
-  active: 'dom' | 'three'
-  blurb: string
-}>()
+defineProps<{ blurb: string }>()
 
 defineEmits<{
   newKey: []
@@ -50,6 +41,4 @@ defineEmits<{
 
 const seed = defineModel<string>('seed', { required: true })
 const drains = defineModel<boolean>('drains', { required: true })
-const dark = defineModel<boolean>('dark', { required: true })
-const scrolling = defineModel<boolean>('scrolling', { required: true })
 </script>
