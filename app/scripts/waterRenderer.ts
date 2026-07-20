@@ -161,9 +161,13 @@ float noise(vec2 p) {
 }
 
 void main() {
-  // Position in block units. y counts upward, matching World's coordinates.
-  vec2 p = vec2(vUv.x, 1.0 - vUv.y) * uSize;
-  p.y += uScroll;
+  // Position in block units. vUv.y is 0 at the bottom of the quad and the
+  // world's y is 0 at the bottom too, so these map straight across — flipping
+  // v here would draw the world upside down.
+  vec2 p = vUv * uSize;
+  // The DOM renderer moves blocks up the screen as scrollOffset grows, so at a
+  // fixed screen height we need to read a correspondingly lower world row.
+  p.y -= uScroll;
 
   float row = floor(p.y);
   float fy = fract(p.y);

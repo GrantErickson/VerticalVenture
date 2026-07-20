@@ -81,10 +81,11 @@ function blockAt(event: MouseEvent): Block | null {
   if (!el) return null
   const rect = el.getBoundingClientRect()
   const x = Math.floor(((event.clientX - rect.left) / rect.width) * WORLD_WIDTH)
-  // Canvas y runs downward, the world's y runs upward.
+  // Canvas y runs downward, the world's y runs upward. Subtract the scroll for
+  // the same reason the shader does — keep this in step with it.
   const fromTop = ((event.clientY - rect.top) / rect.height) * WORLD_HEIGHT
   const y = Math.floor(
-    WORLD_HEIGHT - fromTop + game.value.scrollOffset / game.value.blockSize,
+    WORLD_HEIGHT - fromTop - game.value.scrollOffset / game.value.blockSize,
   )
   return game.value.world.getBlock(x, y)
 }
