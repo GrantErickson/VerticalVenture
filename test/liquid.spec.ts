@@ -1,3 +1,4 @@
+import { describe, expect, test } from 'vitest'
 import { World } from '@/scripts/world'
 
 describe('liquid', () => {
