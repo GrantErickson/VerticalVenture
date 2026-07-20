@@ -1,9 +1,6 @@
-import { nextTick } from 'vue/types/umd'
 import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
-import { Block } from './block'
-import { RandomSeed } from 'random-seed'
-import { debug } from 'webpack'
+import { create as createRandomizer, RandomSeed } from 'random-seed'
 
 export class Game {
   world: World
@@ -25,7 +22,7 @@ export class Game {
   tickMsThisSecond: number = 0
   scrollOffset: number = 1
   private scrollIndex: ReturnType<typeof setTimeout> | null = null
-  private randomizer: any = null
+  private randomizer: RandomSeed = createRandomizer()
 
   constructor(public width: number, public height: number) {
     this.world = new World(width, height)
@@ -122,11 +119,11 @@ export class Game {
   }
 
   createRandomWorld(seed: string) {
-    this.randomizer = require('random-seed').create(seed)
+    this.randomizer = createRandomizer(seed)
     for (let y = 0; y < this.world.height; y++) {
       this.createRandomRow(y)
     }
-    this.settleBlocks
+    this.settleBlocks()
   }
 
   createRandomRow(y: number) {
@@ -166,7 +163,10 @@ export class Game {
             block.blockBelow?.blockType.nature !== BlockNature.solid &&
             block.blockAbove?.blockType.nature !== BlockNature.solid
           ) {
-            block.blockBelow?.blockType == block.blockType
+            const blockBelow = block.blockBelow
+            if (blockBelow) {
+              blockBelow.blockType = block.blockType
+            }
             block.blockType = this.world.getBlockType('empty')
           }
         }

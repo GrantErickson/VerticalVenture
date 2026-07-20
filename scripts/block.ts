@@ -63,20 +63,27 @@ export class Block {
   }
 
   get surroundingBlockType(): BlockType | null {
-    let types: any = {}
-    if (this.blockAbove) types[this.blockAbove.blockType.name]++
-    if (this.blockBelow) types[this.blockBelow.blockType.name]++
-    if (this.blockLeft) types[this.blockLeft.blockType.name]++
-    if (this.blockRight) types[this.blockRight.blockType.name]++
+    const types: { [name: string]: number } = {}
+    for (const neighbor of [
+      this.blockAbove,
+      this.blockBelow,
+      this.blockLeft,
+      this.blockRight,
+    ]) {
+      if (neighbor) {
+        const name = neighbor.blockType.name
+        types[name] = (types[name] ?? 0) + 1
+      }
+    }
 
     let bestCount = 0
     let bestType: BlockType | null = null
-    Object.entries(types).forEach((type) => {
-      if ((type[1] as number) > bestCount && type[0] !== 'empty') {
-        bestCount = type[1] as number
-        bestType = this.#world.getBlockType(type[0])
+    for (const [name, count] of Object.entries(types)) {
+      if (count > bestCount && name !== 'empty') {
+        bestCount = count
+        bestType = this.#world.getBlockType(name)
       }
-    })
+    }
     return bestType
   }
 }

@@ -156,7 +156,7 @@ export class LightProcessor {
           Direction.southWest
         )
         this.processBlock(
-          block.blockBelow,
+          block.blockLeft,
           luminosity * this.scatterAmount,
           Direction.southWest
         )
