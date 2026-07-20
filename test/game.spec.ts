@@ -1,3 +1,4 @@
+import { describe, expect, test } from 'vitest'
 import { Game } from '@/scripts/game'
 
 describe('game', () => {

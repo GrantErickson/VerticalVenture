@@ -1,23 +1,24 @@
 import { Block } from './block'
 import { World } from './world'
 
+// `private` rather than `#private` — see the note in block.ts.
 export class LightProcessor {
-  #world: World
+  private _world: World
   propagationFactor = 0.8
   minimumLight = 0.1
   scatterAmount = 0.2 // The amount the light scatters on the diagonals
 
   constructor(world: World) {
-    this.#world = world
+    this._world = world
   }
 
   process(): void {
     //console.log('Processing Lights')
     // Clear brightnesses from all blocks
-    this.#world.clearBrightness()
+    this._world.clearBrightness()
 
     // Iterate all the lights in the world
-    for (const light of this.#world.lights) {
+    for (const light of this._world.lights) {
       //console.log('Processing light at ' + light.x + ', ' + light.y)
       if (light.item) {
         light.brightness = light.item!.luminosity
@@ -29,25 +30,25 @@ export class LightProcessor {
       this.processBlock(
         light.blockAbove?.blockRight,
         luminosity,
-        Direction.northEast
+        Direction.northEast,
       )
       this.processBlock(light.blockRight, luminosity, Direction.east)
       this.processBlock(
         light.blockRight?.blockBelow,
         luminosity,
-        Direction.southEast
+        Direction.southEast,
       )
       this.processBlock(light.blockBelow, luminosity, Direction.south)
       this.processBlock(
         light.blockBelow?.blockLeft,
         luminosity,
-        Direction.southWest
+        Direction.southWest,
       )
       this.processBlock(light.blockLeft, luminosity, Direction.west)
       this.processBlock(
         light.blockLeft?.blockAbove,
         luminosity,
-        Direction.northWest
+        Direction.northWest,
       )
     }
   }
@@ -55,7 +56,7 @@ export class LightProcessor {
   private processBlock(
     block: Block | null | undefined,
     luminosity: number,
-    direction: Direction
+    direction: Direction,
   ): void {
     if (!block) {
       return
@@ -75,120 +76,120 @@ export class LightProcessor {
         this.processBlock(
           block.blockAbove?.blockLeft,
           luminosity,
-          Direction.northWest
+          Direction.northWest,
         )
         this.processBlock(block.blockAbove, luminosity, Direction.north)
         this.processBlock(
           block.blockAbove?.blockRight,
           luminosity,
-          Direction.northEast
+          Direction.northEast,
         )
         break
       case Direction.northEast:
         this.processBlock(
           block.blockAbove?.blockRight,
           luminosity,
-          Direction.northEast
+          Direction.northEast,
         )
         this.processBlock(
           block.blockRight,
           luminosity * this.scatterAmount,
-          Direction.northEast
+          Direction.northEast,
         )
         this.processBlock(
           block.blockAbove,
           luminosity * this.scatterAmount,
-          Direction.northEast
+          Direction.northEast,
         )
         break
       case Direction.east:
         this.processBlock(
           block.blockRight?.blockAbove,
           luminosity,
-          Direction.northEast
+          Direction.northEast,
         )
         this.processBlock(block.blockRight, luminosity, Direction.east)
         this.processBlock(
           block.blockRight?.blockBelow,
           luminosity,
-          Direction.southEast
+          Direction.southEast,
         )
         break
       case Direction.southEast:
         this.processBlock(
           block.blockRight?.blockBelow,
           luminosity,
-          Direction.southEast
+          Direction.southEast,
         )
         this.processBlock(
           block.blockRight,
           luminosity * this.scatterAmount,
-          Direction.southEast
+          Direction.southEast,
         )
         this.processBlock(
           block.blockBelow,
           luminosity * this.scatterAmount,
-          Direction.southEast
+          Direction.southEast,
         )
         break
       case Direction.south:
         this.processBlock(
           block.blockBelow?.blockRight,
           luminosity,
-          Direction.southEast
+          Direction.southEast,
         )
         this.processBlock(block.blockBelow, luminosity, Direction.south)
         this.processBlock(
           block.blockBelow?.blockLeft,
           luminosity,
-          Direction.southWest
+          Direction.southWest,
         )
         break
       case Direction.southWest:
         this.processBlock(
           block.blockBelow?.blockLeft,
           luminosity,
-          Direction.southWest
+          Direction.southWest,
         )
         this.processBlock(
           block.blockBelow,
           luminosity * this.scatterAmount,
-          Direction.southWest
+          Direction.southWest,
         )
         this.processBlock(
           block.blockLeft,
           luminosity * this.scatterAmount,
-          Direction.southWest
+          Direction.southWest,
         )
         break
       case Direction.west:
         this.processBlock(
           block.blockLeft?.blockBelow,
           luminosity,
-          Direction.southWest
+          Direction.southWest,
         )
         this.processBlock(block.blockLeft, luminosity, Direction.west)
         this.processBlock(
           block.blockLeft?.blockAbove,
           luminosity,
-          Direction.northWest
+          Direction.northWest,
         )
         break
       case Direction.northWest:
         this.processBlock(
           block.blockLeft?.blockAbove,
           luminosity,
-          Direction.northWest
+          Direction.northWest,
         )
         this.processBlock(
           block.blockLeft,
           luminosity * this.scatterAmount,
-          Direction.northWest
+          Direction.northWest,
         )
         this.processBlock(
           block.blockAbove,
           luminosity * this.scatterAmount,
-          Direction.northWest
+          Direction.northWest,
         )
         break
     }

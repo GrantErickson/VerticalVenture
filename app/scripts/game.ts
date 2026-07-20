@@ -1,6 +1,6 @@
 import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
-import { create as createRandomizer, RandomSeed } from 'random-seed'
+import { create as createRandomizer, type RandomSeed } from 'random-seed'
 
 export class Game {
   world: World
@@ -24,7 +24,10 @@ export class Game {
   private scrollIndex: ReturnType<typeof setTimeout> | null = null
   private randomizer: RandomSeed = createRandomizer()
 
-  constructor(public width: number, public height: number) {
+  constructor(
+    public width: number,
+    public height: number,
+  ) {
     this.world = new World(width, height)
     this.heightInPx = height * this.blockSize
   }

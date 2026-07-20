@@ -19,7 +19,7 @@ export abstract class BlockType {
     nature: BlockNature,
     background: string,
     image: string | null,
-    opacity: number
+    opacity: number,
   ) {
     this.name = name
     this.nature = nature
