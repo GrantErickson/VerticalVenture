@@ -1,30 +1,16 @@
 <template>
   <div>
-    <v-row>
-      <v-col cols="2">
-        <v-text-field
-          v-model="gameSeed"
-          label="Seed"
-          append-icon="mdi-refresh"
-          @click:append="newKey"
-        />
-      </v-col>
-      <v-col cols="1" class="pt-6">
-        <v-btn @click="generateWorld">Reset</v-btn>
-      </v-col>
-      <v-col cols="2" class="pt-6">
-        <v-btn @click="addLotsOfWater">Add Water</v-btn>
-      </v-col>
-      <v-col cols="2">
-        <v-switch v-model="drains" label="Drain" />
-      </v-col>
-      <v-col cols="3">
-        <v-switch v-model="dark" label="Dark (shift-click to add lights)" />
-      </v-col>
-      <v-col cols="2">
-        <v-switch v-model="scrolling" label="Scroll" />
-      </v-col>
-    </v-row>
+    <GameControls
+      v-model:seed="gameSeed"
+      v-model:drains="drains"
+      v-model:dark="dark"
+      v-model:scrolling="scrolling"
+      active="dom"
+      blurb="DOM renderer — one absolutely positioned div per block."
+      @new-key="newKey"
+      @reset="generateWorld"
+      @add-water="addLotsOfWater"
+    />
 
     <div
       class="world"
@@ -50,7 +36,7 @@
               game.heightInPx - (block.y + 1) * 20 - game.scrollOffset + 'px',
             left: block.x * 20 + 'px',
           }"
-          @click="clickBlock(block, $event)"
+          @click="clickBlock(block, $event.shiftKey)"
           @mouseover="hoverBlock(block)"
           @mouseleave="leaveBlock(block)"
         >
@@ -71,152 +57,27 @@
       </template>
     </div>
 
-    <v-row class="mt-2">
-      <v-col cols="1">Lights: {{ stats.torches }}</v-col>
-      <v-col cols="2">Water: {{ stats.waterBlocks }}</v-col>
-      <v-col cols="2">Changes: {{ changes }}</v-col>
-      <v-col cols="2">Blocks Lit: {{ stats.blocksLit }}</v-col>
-      <v-col cols="1">FPS: {{ stats.framesPerSecond }}</v-col>
-      <v-col cols="2">Frame Time: {{ stats.msPerTick }}</v-col>
-    </v-row>
+    <GameStats :stats="stats" :changes="changes" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { Game } from '~/scripts/game'
-import type { Block } from '~/scripts/block'
-import { BlockNature } from '~/scripts/blockType'
-import { Item } from '~/scripts/item'
-
-// `shallowRef`, so the 1250 blocks stay plain objects. Making them deeply
-// reactive costs ~50x per simulation tick (0.17ms -> 8.6ms measured), because
-// the game loop touches every block several times per tick and each access
-// pays proxy + dependency-tracking overhead.
-//
-// Instead, rendering is driven by `frame`, bumped once per animation frame and
-// read by the template (see :data-frame on .world). That re-runs the render
-// effect, which re-reads the raw blocks — so simulation runs at its own rate
-// and painting happens at most once per frame.
-const game = shallowRef(new Game(50, 25))
-const frame = ref(0)
-const gameSeed = ref('')
-const changes = ref(0)
-
-// The counters below are rendered inside <v-col> slots. Vue only re-invokes a
-// child component's slot when a *reactive* dependency read inside it changes,
-// and the game instance is deliberately raw — so read them off the game once
-// per frame into reactive state rather than binding the raw fields directly.
-const stats = reactive({
-  torches: 0,
-  waterBlocks: 0,
-  blocksLit: 0,
-  framesPerSecond: 0,
-  msPerTick: 0,
-})
-
-// Same reason: these drive <v-switch> props, so the UI owns them and pushes
-// into the raw game. Binding game.drains/dark/isScrolling directly leaves the
-// switch stuck in its old position even though the game state has changed.
-const drains = ref(false)
-const dark = ref(false)
-const scrolling = ref(false)
-
-watch(drains, (v) => (game.value.drains = v))
-watch(dark, (v) => (game.value.dark = v))
-watch(scrolling, (v) => (game.value.isScrolling = v))
-
-let rafHandle = 0
-
-onMounted(() => {
-  newKey()
-  const loop = () => {
-    const g = game.value
-    stats.torches = g.torches
-    stats.waterBlocks = g.waterBlocks
-    stats.blocksLit = g.blocksLit
-    stats.framesPerSecond = g.framesPerSecond
-    stats.msPerTick = g.msPerTick
-    frame.value++
-    rafHandle = requestAnimationFrame(loop)
-  }
-  loop()
-})
-
-// The game owns two intervals; without this they outlive the page.
-onBeforeUnmount(() => {
-  cancelAnimationFrame(rafHandle)
-  game.value.isScrolling = false
-  game.value.stop()
-})
-
-function newKey() {
-  gameSeed.value = Math.random().toString(36).split('.')[1]!.substring(0, 4)
-  generateWorld()
-}
-
-function generateWorld() {
-  game.value.isScrolling = false
-  game.value.stop()
-
-  const next = new Game(50, 25)
-  next.createRandomWorld(gameSeed.value)
-  // Carry the switch positions over, otherwise the toggles would still read
-  // "on" while the fresh game had them off.
-  next.drains = drains.value
-  next.dark = dark.value
-  next.isScrolling = scrolling.value
-  next.start()
-
-  game.value = next
-  changes.value = 0
-}
-
-function addLotsOfWater() {
-  for (let x = 0; x < game.value.world.width; x++) {
-    const block = game.value.world.getBlock(x, game.value.world.height - 1)!
-    if (block.blockType.nature === BlockNature.empty)
-      block.blockType = game.value.world.getBlockType('water')
-  }
-}
-
-function hoverBlock(block: Block | null) {
-  if (block) game.value.world.addLight(block)
-}
-
-function leaveBlock(block: Block | null) {
-  if (block && !block.item?.luminosity) game.value.world.removeLight(block)
-}
-
-function clickBlock(block: Block, event: MouseEvent) {
-  if (event.shiftKey) {
-    if (block.item) {
-      block.item = null
-    } else {
-      block.item = new Item('torch', 1, 'Torch')
-      game.value.world.processLighting()
-    }
-    return
-  }
-
-  if (block.blockType.name === 'water') {
-    block.blockType = game.value.world.getBlockType('rock')
-    block.percentFilled = 100
-    block.isFlowing = false
-  } else if (block.blockType.name === 'rock') {
-    block.blockType = game.value.world.getBlockType('empty')
-    block.percentFilled = 0
-  } else if (block.blockType.name === 'empty') {
-    block.blockType = game.value.world.getBlockType('rock')
-    block.percentFilled = 100
-    block.isFlowing = false
-  }
-  changes.value++
-  game.value.world.addActiveBlock(block)
-  game.value.world.addActiveBlock(block.blockBelow)
-  game.value.world.addActiveBlock(block.blockLeft)
-  game.value.world.addActiveBlock(block.blockRight)
-  game.value.world.addActiveBlock(block.blockAbove)
-}
+const {
+  game,
+  frame,
+  stats,
+  gameSeed,
+  changes,
+  drains,
+  dark,
+  scrolling,
+  newKey,
+  generateWorld,
+  addLotsOfWater,
+  hoverBlock,
+  leaveBlock,
+  clickBlock,
+} = useGame()
 </script>
 
 <style scoped>

@@ -53,7 +53,10 @@ const rightDrawer = ref(false)
 const miniVariant = ref(false)
 const title = 'Vertical Venture'
 
-const items = [{ icon: 'mdi-apps', title: 'Welcome', to: '/' }]
+const items = [
+  { icon: 'mdi-view-grid', title: 'DOM renderer', to: '/' },
+  { icon: 'mdi-cube-outline', title: 'three.js renderer', to: '/three' },
+]
 </script>
 
 <style scoped>
