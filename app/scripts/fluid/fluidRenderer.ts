@@ -16,8 +16,9 @@ import { FLUID, type FlipFluid } from './flipFluid'
  *      a continuous sheet that merges and separates on its own.
  *
  * That threshold is the whole trick: two particles near each other overlap into
- * one blob and read as one body, while a lone particle stays a droplet. Nothing
- * has to decide which is which.
+ * one blob and read as one body. A lone particle's blob never reaches the cut,
+ * so what falls under it — droplets, spray, the leading edge of a splash — is
+ * drawn faintly instead of not at all. Nothing has to decide which is which.
  *
  * The rock is drawn in the same final pass from a block sized data texture, so
  * water is composited against terrain without a second geometry pass.
@@ -360,6 +361,17 @@ void main() {
   // Thicker water hides more of the rock behind it.
   float opacity = mix(0.55, 0.95, depth);
   col = mix(col, waterCol, water * opacity);
+
+  // Water below the cut has not stopped existing — a lone particle's blob
+  // peaks around 0.12 and a resting pair around 0.25, both under it — so
+  // without this, spray and droplets vanish into thin air and pop back into
+  // being wherever they land. Drawn faint, and faded up with speed, so flying
+  // spray shows clearly while the thin tail of a calm pool's field reads as a
+  // narrow wet rim at the waterline rather than a glow around every body.
+  float spray = smoothstep(0.05, 0.115, density) * (1.0 - water);
+  float sprayOpacity = spray * (0.25 + 0.45 * smoothstep(6.0, 30.0, speed));
+  vec3 sprayCol = mix(waterCol, vec3(0.85, 0.94, 1.0), 0.45);
+  col = mix(col, sprayCol, sprayOpacity);
 
   // Rock in front of the water rather than behind it, so a splash against a
   // wall is cut off at the wall instead of smeared over it.

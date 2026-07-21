@@ -116,9 +116,11 @@ export class FlipFluid {
     this.maxParticles = options.maxParticles
     this.gravity = options.gravity ?? -110
     // 0.9 read as syrup: with 10% PIC blended in every step, a splash died in
-    // a couple of dozen frames and the water crawled. 0.95 keeps sloshing and
-    // splashing alive while the remaining PIC still bleeds off jitter.
-    this.flipRatio = options.flipRatio ?? 0.95
+    // a couple of dozen frames and the water crawled. 3% PIC is about as little
+    // as this model can get away with — it keeps sloshing and splashing alive,
+    // and a sealed tank still settles to a dead stop, but much past this the
+    // damping left cannot bleed jitter off faster than FLIP feeds it in.
+    this.flipRatio = options.flipRatio ?? 0.97
     // 30 sweeps and 2 separation passes measured out at about 7ms a frame for
     // the ~7500 particles a generated world holds, with the water still coming
     // to a dead stop and no voids opening up under the surface.
@@ -126,11 +128,11 @@ export class FlipFluid {
     this.overRelaxation = options.overRelaxation ?? 1.9
     this.driftCorrection = options.driftCorrection ?? 1.0
     // Shared per pair per separation pass, so the effective smoothing is about
-    // double this number. 0.12 made the water move as one gluey mass; 0.05 is
-    // still enough, with the PIC fraction above, for a sealed tank to reach a
-    // dead stop (the settling test holds), but drops and streams break apart
-    // instead of stringing.
-    this.viscosity = options.viscosity ?? 0.05
+    // double this number. 0.12 made the water move as one gluey mass; down at
+    // 0.03 drops and streams break apart instead of stringing, and with the
+    // PIC fraction above it is still enough for a sealed tank to reach a dead
+    // stop (the settling test holds, and measures the margin).
+    this.viscosity = options.viscosity ?? 0.03
     this.separationIterations = options.separationIterations ?? 2
 
     const cells = this.width * this.height
