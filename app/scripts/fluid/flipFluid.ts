@@ -49,7 +49,12 @@ export interface FlipFluidOptions {
   pressureIterations?: number
   /** Over-relaxation for those sweeps; 1.9 converges far faster than 1.0. */
   overRelaxation?: number
-  /** How hard to push apart particles that have bunched up. */
+  /**
+   * How hard the pressure solve pushes back when a cell holds more or less than
+   * its share of particles. Crowded cells are always corrected; under-filled
+   * ones only where they are submerged, since a cell at a free surface is meant
+   * to be short of particles.
+   */
   driftCorrection?: number
   /**
    * How strongly neighbouring particles pull each other towards a shared
@@ -138,6 +143,7 @@ export class FlipFluid {
     this.cellStart = new Int32Array(cells + 1)
     this.cellEntries = new Int32Array(this.maxParticles)
     this.fluidCells = new Int32Array(cells)
+    this.submerged = new Uint8Array(cells)
   }
 
   private cellIndex(i: number, j: number): number {
@@ -188,6 +194,8 @@ export class FlipFluid {
   // half rock and air that is most of the work saved.
   private readonly fluidCells: Int32Array
   private fluidCellCount = 0
+  /** Parallel to fluidCells: 1 where the cell is under the surface. */
+  private readonly submerged: Uint8Array
 
   /**
    * Order matters here, and getting it wrong is invisible until you notice the
@@ -483,6 +491,7 @@ export class FlipFluid {
     }
 
     this.enforceSolidFaces()
+    this.markSubmerged()
 
     // The FLIP correction is what *this step* did to the water, so the baseline
     // is the field as the particles just handed it over — before gravity and
@@ -491,6 +500,25 @@ export class FlipFluid {
     // that should be sitting still jitters forever.
     this.uPrev.set(this.u)
     this.vPrev.set(this.v)
+  }
+
+  /**
+   * Which of the water cells have nothing but water or rock around them, and
+   * so are properly under the surface. Worked out once per step rather than
+   * inside the pressure sweeps, which all see the same cell types.
+   */
+  private markSubmerged() {
+    const height = this.height
+    for (let n = 0; n < this.fluidCellCount; n++) {
+      const c = this.fluidCells[n]!
+      this.submerged[n] =
+        this.cell[c - height] !== AIR &&
+        this.cell[c + height] !== AIR &&
+        this.cell[c - 1] !== AIR &&
+        this.cell[c + 1] !== AIR
+          ? 1
+          : 0
+    }
   }
 
   /** No flow through rock: any face touching a solid cell is pinned shut. */
@@ -663,7 +691,22 @@ export class FlipFluid {
 
         if (this.restDensity > 0 && this.driftCorrection > 0) {
           const crowding = this.density[c]! - this.restDensity
-          if (crowding > 0) divergence -= this.driftCorrection * crowding
+          // Crowded cells always push back. Under-filled ones pull back in, but
+          // only where the cell is submerged — every neighbour is water or rock.
+          //
+          // Correcting crowding alone is one-way, and the water ratchets itself
+          // apart: nothing else in the model ever pulls particles together
+          // (pushParticlesApart only ever pushes), so any thin patch is
+          // permanent while any dense one is pushed out. Measured over a settled
+          // tank, that cost 15% of the packing and 15% of the volume in 3000
+          // steps, and holes opened up through the middle of the water.
+          //
+          // The submerged test is what keeps this safe: a cell at a free
+          // surface is *meant* to be short of particles, and pulling there would
+          // suck the surface flat and dimple it.
+          if (crowding > 0 || this.submerged[n] === 1) {
+            divergence -= this.driftCorrection * crowding
+          }
         }
 
         const correction = (-divergence / open) * this.overRelaxation
