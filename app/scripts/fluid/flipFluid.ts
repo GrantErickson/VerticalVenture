@@ -115,14 +115,22 @@ export class FlipFluid {
     this.height = options.height
     this.maxParticles = options.maxParticles
     this.gravity = options.gravity ?? -110
-    this.flipRatio = options.flipRatio ?? 0.9
+    // 0.9 read as syrup: with 10% PIC blended in every step, a splash died in
+    // a couple of dozen frames and the water crawled. 0.95 keeps sloshing and
+    // splashing alive while the remaining PIC still bleeds off jitter.
+    this.flipRatio = options.flipRatio ?? 0.95
     // 30 sweeps and 2 separation passes measured out at about 7ms a frame for
     // the ~7500 particles a generated world holds, with the water still coming
     // to a dead stop and no voids opening up under the surface.
     this.pressureIterations = options.pressureIterations ?? 30
     this.overRelaxation = options.overRelaxation ?? 1.9
     this.driftCorrection = options.driftCorrection ?? 1.0
-    this.viscosity = options.viscosity ?? 0.12
+    // Shared per pair per separation pass, so the effective smoothing is about
+    // double this number. 0.12 made the water move as one gluey mass; 0.05 is
+    // still enough, with the PIC fraction above, for a sealed tank to reach a
+    // dead stop (the settling test holds), but drops and streams break apart
+    // instead of stringing.
+    this.viscosity = options.viscosity ?? 0.05
     this.separationIterations = options.separationIterations ?? 2
 
     const cells = this.width * this.height
@@ -428,7 +436,13 @@ export class FlipFluid {
   }
 
   private nearestOpenCell(ci: number, cj: number) {
-    for (let ring = 2; ring <= 4; ring++) {
+    // Ring 1 matters: its faces are known solid by the time this is called, but
+    // its *diagonals* are not, and the corner cell of a pocket has an open
+    // diagonal — the cell the particle was shoved out of. Starting at ring 2
+    // instead used to teleport such particles through a block-thick wall into
+    // whatever cavity lay beyond, and pockets slowly bled water at the corners
+    // whenever sloshing pressed a particle in.
+    for (let ring = 1; ring <= 4; ring++) {
       let best: { i: number; j: number } | null = null
       let bestDistance = Infinity
       for (let i = ci - ring; i <= ci + ring; i++) {

@@ -168,6 +168,34 @@ describe('flip fluid', () => {
     expect(deepParticles / deepCells).toBeGreaterThan(fluid.restDensity * 0.95)
   })
 
+  test('water sealed in a pocket never tunnels through the walls', () => {
+    // Two cavities separated by a block-thick (two cell) wall, everything else
+    // rock. Sloshing water presses corner particles into the corner cell of
+    // the pocket — a solid cell whose four face neighbours are all solid — and
+    // the rescue in pushOutOfSolids has to look outward for somewhere to put
+    // them. Before it considered the open diagonal at ring 1, it would pick a
+    // cell in the *other* cavity, and pockets slowly bled dry at the corners.
+    const fluid = new FlipFluid({ width: 24, height: 18, maxParticles: 8000 })
+    for (let i = 0; i < 24; i++)
+      for (let j = 0; j < 18; j++) fluid.setSolid(i, j, true)
+    for (let i = 2; i <= 7; i++)
+      for (let j = 3; j <= 12; j++) fluid.setSolid(i, j, false)
+    for (let i = 10; i <= 17; i++)
+      for (let j = 3; j <= 12; j++) fluid.setSolid(i, j, false)
+
+    // A column against the pocket's left wall, dropped so it collapses and
+    // slams into the corners.
+    fill(fluid, 10, 6, 13, 13)
+    const poured = fluid.count
+
+    run(fluid, 1000)
+
+    expect(fluid.count).toEqual(poured)
+    for (let i = 0; i < fluid.count; i++) {
+      expect(fluid.px[i]!).toBeGreaterThan(9)
+    }
+  })
+
   test('stays evenly packed rather than clumping into voids', () => {
     const fluid = makeTank(30, 30)
     fill(fluid, 1, 1, 29, 15)
