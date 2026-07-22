@@ -10,20 +10,82 @@
           </v-tooltip>
         </v-btn>
       </v-col>
-      <v-col cols="1">
-        <v-btn @click="generateWorld">Reset</v-btn>
+      <v-col cols="auto">
+        <v-btn @click="generateWorld">
+          Reset
+          <v-tooltip activator="parent" location="bottom">
+            Rebuild this same world from its seed
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="2">
-        <v-btn @click="addLotsOfWater">Add Water</v-btn>
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          aria-label="Add water"
+          @click="addLotsOfWater"
+        >
+          <v-icon>mdi-water-plus</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            Pour a layer of water in along the top
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="2">
-        <v-switch v-model="drains" label="Drain" />
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          :color="drains ? 'info' : undefined"
+          :aria-label="drains ? 'Close the drain' : 'Open the drain'"
+          @click="drains = !drains"
+        >
+          <v-icon>{{ drains ? 'mdi-valve-open' : 'mdi-valve-closed' }}</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{
+              drains
+                ? 'Drain is open — water is leaving through the floor'
+                : 'Open the drain in the floor'
+            }}
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="3">
-        <v-switch v-model="dark" label="Dark (shift-click to add lights)" />
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          :color="dark ? 'secondary' : undefined"
+          :aria-label="dark ? 'Turn the lights on' : 'Turn the lights off'"
+          @click="dark = !dark"
+        >
+          <v-icon>
+            {{ dark ? 'mdi-weather-night' : 'mdi-lightbulb-on-outline' }}
+          </v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{
+              dark
+                ? 'Turn the lights back on'
+                : 'Go dark and see by torchlight — shift-click places torches'
+            }}
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="2">
-        <v-switch v-model="scrolling" label="Scroll" />
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          :color="scrolling ? 'info' : undefined"
+          :aria-label="scrolling ? 'Stop scrolling' : 'Start scrolling'"
+          @click="scrolling = !scrolling"
+        >
+          <v-icon>mdi-chevron-double-up</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{
+              scrolling
+                ? 'Stop the world scrolling'
+                : 'Scroll — the world climbs and fresh rows appear below'
+            }}
+          </v-tooltip>
+        </v-btn>
       </v-col>
     </v-row>
 
@@ -72,7 +134,12 @@
       </template>
     </div>
 
-    <v-row class="mt-2">
+    <div class="text-caption text-medium-emphasis mt-2">
+      Click on the world to dig or fill a block. Shift-click places or removes a
+      torch.
+    </div>
+
+    <v-row class="mt-0">
       <v-col cols="1">Lights: {{ stats.torches }}</v-col>
       <v-col cols="2">Water: {{ stats.waterBlocks }}</v-col>
       <v-col cols="2">Changes: {{ changes }}</v-col>
