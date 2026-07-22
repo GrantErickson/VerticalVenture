@@ -12,10 +12,7 @@ import { WORLD_WIDTH, WORLD_HEIGHT } from './useGame'
  */
 export const CELLS_PER_BLOCK = 2
 
-/** Particles per cell along each axis: sixteen to a cell, matching the
- * solver's rest spacing of a quarter cell. */
-const PARTICLES_PER_AXIS = 4
-
+/** Sized for the finest particle setting; coarser ones simply use less. */
 const MAX_PARTICLES = 96000
 
 /**
@@ -28,6 +25,7 @@ const MAX_PARTICLES = 96000
  * block grid keeps only the rock from then on.
  */
 export function useFluidWorld() {
+  const { settings } = useFluidSettings()
   const seed = ref('')
   const drains = ref(false)
   const changes = ref(0)
@@ -54,6 +52,11 @@ export function useFluidWorld() {
       width: WORLD_WIDTH * CELLS_PER_BLOCK,
       height: WORLD_HEIGHT * CELLS_PER_BLOCK,
       maxParticles: MAX_PARTICLES,
+      spacing: 1 / settings.particlesPerAxis,
+      flipRatio: settings.flipRatio,
+      viscosity: settings.viscosity,
+      pressureIterations: settings.pressureIterations,
+      separationIterations: settings.separationIterations,
     })
   }
 
@@ -88,17 +91,18 @@ export function useFluidWorld() {
     terrainVersion.value++
   }
 
-  /** Fill one block's worth of cells with particles. */
+  /** Fill one block's worth of cells with particles at the rest packing. */
   function fillBlock(blockX: number, blockY: number) {
     const f = fluid.value
-    const step = 1 / PARTICLES_PER_AXIS
+    const perAxis = settings.particlesPerAxis
+    const step = 1 / perAxis
     for (let ci = 0; ci < CELLS_PER_BLOCK; ci++) {
       for (let cj = 0; cj < CELLS_PER_BLOCK; cj++) {
         const cellX = blockX * CELLS_PER_BLOCK + ci
         const cellY = blockY * CELLS_PER_BLOCK + cj
         if (f.isSolid(cellX, cellY)) continue
-        for (let px = 0; px < PARTICLES_PER_AXIS; px++)
-          for (let py = 0; py < PARTICLES_PER_AXIS; py++)
+        for (let px = 0; px < perAxis; px++)
+          for (let py = 0; py < perAxis; py++)
             f.addParticle(cellX + (px + 0.5) * step, cellY + (py + 0.5) * step)
       }
     }
@@ -175,6 +179,29 @@ export function useFluidWorld() {
     }
     stats.particles = f.count
   }
+
+  // The feel and cost knobs take hold in the running water on the spot; the
+  // solver reads them every step. Fineness changes what a block of water is
+  // worth in particles, so it rebuilds the world from the current seed.
+  watch(
+    () => [
+      settings.flipRatio,
+      settings.viscosity,
+      settings.pressureIterations,
+      settings.separationIterations,
+    ],
+    () => {
+      const f = fluid.value
+      f.flipRatio = settings.flipRatio
+      f.viscosity = settings.viscosity
+      f.pressureIterations = settings.pressureIterations
+      f.separationIterations = settings.separationIterations
+    },
+  )
+  watch(
+    () => settings.particlesPerAxis,
+    () => generateWorld(),
+  )
 
   return {
     game,

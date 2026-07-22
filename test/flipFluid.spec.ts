@@ -123,50 +123,60 @@ describe('flip fluid', () => {
     expect(settled).toBeLessThan(0.5)
   })
 
-  test('settled water keeps its packing instead of slowly inflating', () => {
-    const fluid = makeTank(40, 30)
-    fill(fluid, 1, 1, 39, 20)
+  // 2000 steps of a full tank — legitimately the slow one in this file.
+  test(
+    'settled water keeps its packing instead of slowly inflating',
+    {
+      timeout: 20000,
+    },
+    () => {
+      const fluid = makeTank(40, 30)
+      fill(fluid, 1, 1, 39, 20)
 
-    const waterCells = () => {
-      let n = 0
-      for (let c = 0; c < fluid.cell.length; c++) if (fluid.cell[c] === 1) n++
-      return n
-    }
-
-    run(fluid, 400)
-    const settled = waterCells()
-
-    run(fluid, 1600)
-
-    // Nothing in this model pulls particles together — pushParticlesApart only
-    // ever pushes — so if the density term in the pressure solve only answers
-    // crowding, thin patches are permanent while dense ones are pushed out and
-    // the water ratchets itself apart. Measured before that was fixed, the same
-    // water spread over 14% more cells in 3000 steps, packing fell from 3.9 to
-    // 3.4 per cell, and holes opened up through the middle of it.
-    expect(waterCells()).toBeLessThan(settled * 1.03)
-
-    // ...and it should still be sitting at its rest packing, not stretched thin.
-    let deepCells = 0
-    let deepParticles = 0
-    const counts = new Float32Array(fluid.width * fluid.height)
-    for (let i = 0; i < fluid.count; i++)
-      counts[
-        Math.floor(fluid.px[i]!) * fluid.height + Math.floor(fluid.py[i]!)
-      ]!++
-    for (let i = 2; i < fluid.width - 2; i++)
-      for (let j = 2; j < fluid.height - 2; j++) {
-        let deep = true
-        for (let a = -2; a <= 2 && deep; a++)
-          for (let b = -2; b <= 2 && deep; b++)
-            if (fluid.cell[(i + a) * fluid.height + (j + b)] !== 1) deep = false
-        if (!deep) continue
-        deepCells++
-        deepParticles += counts[i * fluid.height + j]!
+      const waterCells = () => {
+        let n = 0
+        for (let c = 0; c < fluid.cell.length; c++) if (fluid.cell[c] === 1) n++
+        return n
       }
-    expect(deepCells).toBeGreaterThan(100)
-    expect(deepParticles / deepCells).toBeGreaterThan(fluid.restDensity * 0.95)
-  })
+
+      run(fluid, 400)
+      const settled = waterCells()
+
+      run(fluid, 1600)
+
+      // Nothing in this model pulls particles together — pushParticlesApart only
+      // ever pushes — so if the density term in the pressure solve only answers
+      // crowding, thin patches are permanent while dense ones are pushed out and
+      // the water ratchets itself apart. Measured before that was fixed, the same
+      // water spread over 14% more cells in 3000 steps, packing fell from 3.9 to
+      // 3.4 per cell, and holes opened up through the middle of it.
+      expect(waterCells()).toBeLessThan(settled * 1.03)
+
+      // ...and it should still be sitting at its rest packing, not stretched thin.
+      let deepCells = 0
+      let deepParticles = 0
+      const counts = new Float32Array(fluid.width * fluid.height)
+      for (let i = 0; i < fluid.count; i++)
+        counts[
+          Math.floor(fluid.px[i]!) * fluid.height + Math.floor(fluid.py[i]!)
+        ]!++
+      for (let i = 2; i < fluid.width - 2; i++)
+        for (let j = 2; j < fluid.height - 2; j++) {
+          let deep = true
+          for (let a = -2; a <= 2 && deep; a++)
+            for (let b = -2; b <= 2 && deep; b++)
+              if (fluid.cell[(i + a) * fluid.height + (j + b)] !== 1)
+                deep = false
+          if (!deep) continue
+          deepCells++
+          deepParticles += counts[i * fluid.height + j]!
+        }
+      expect(deepCells).toBeGreaterThan(100)
+      expect(deepParticles / deepCells).toBeGreaterThan(
+        fluid.restDensity * 0.95,
+      )
+    },
+  )
 
   test('water sealed in a pocket never tunnels through the walls', () => {
     // Two cavities separated by a block-thick (two cell) wall, everything else

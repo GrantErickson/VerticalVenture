@@ -41,6 +41,11 @@ export interface FlipFluidOptions {
   width: number
   height: number
   maxParticles: number
+  /**
+   * Rest spacing between particles, in cells: 1/n packs n² particles into a
+   * cell. Finer water resolves finer detail and costs proportionally more.
+   */
+  spacing?: number
   /** Cells per second squared. Negative is down. */
   gravity?: number
   /** 0 is pure PIC (viscous, lifeless), 1 pure FLIP (energetic, unstable). */
@@ -104,8 +109,8 @@ export class FlipFluid {
   readonly pvy: Float32Array
 
   /** Particles sit about this far apart when the water is at rest. */
-  readonly spacing = 0.25
-  private readonly radius = 0.125
+  readonly spacing: number
+  private readonly radius: number
 
   // Counting-sort buckets for finding a particle's neighbours in the
   // separation pass, on a grid matched to the rest spacing rather than to the
@@ -121,6 +126,8 @@ export class FlipFluid {
     this.width = options.width
     this.height = options.height
     this.maxParticles = options.maxParticles
+    this.spacing = options.spacing ?? 0.25
+    this.radius = this.spacing / 2
     this.gravity = options.gravity ?? -110
     // 0.9 read as syrup: with 10% PIC blended in every step, a splash died in
     // a couple of dozen frames and the water crawled. 3% PIC is about as little

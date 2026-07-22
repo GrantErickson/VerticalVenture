@@ -19,7 +19,10 @@
       <v-col cols="2">
         <v-switch v-model="drains" label="Drain" hide-details />
       </v-col>
-      <v-col cols="5">
+      <v-col cols="1">
+        <FluidSettings />
+      </v-col>
+      <v-col cols="4">
         <span class="text-caption text-medium-emphasis">
           Click to dig or fill a block.
         </span>
