@@ -1,18 +1,19 @@
 <template>
   <div>
-    <v-row>
-      <v-col cols="2">
-        <v-text-field
-          v-model="gameSeed"
-          label="Seed"
-          append-icon="mdi-refresh"
-          @click:append="newKey"
-        />
+    <v-row align="center">
+      <v-col cols="auto">
+        <v-btn icon variant="text" aria-label="New world" @click="newKey">
+          <v-icon>mdi-refresh</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            New world — a fresh seed goes into the URL, so the address bar is
+            always shareable
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="1" class="pt-6">
+      <v-col cols="1">
         <v-btn @click="generateWorld">Reset</v-btn>
       </v-col>
-      <v-col cols="2" class="pt-6">
+      <v-col cols="2">
         <v-btn @click="addLotsOfWater">Add Water</v-btn>
       </v-col>
       <v-col cols="2">
@@ -127,8 +128,31 @@ watch(scrolling, (v) => (game.value.isScrolling = v))
 
 let rafHandle = 0
 
+const route = useRoute()
+const router = useRouter()
+
+/** The seed lives in the URL; adopt it, or mint one if the address is blank. */
+function loadFromUrl() {
+  const fromUrl = typeof route.query.seed === 'string' ? route.query.seed : ''
+  gameSeed.value = fromUrl || randomSeed()
+  if (!fromUrl)
+    router.replace({ query: { ...route.query, seed: gameSeed.value } })
+  generateWorld()
+}
+
+// Back/forward and pasted links change the seed without remounting the page.
+watch(
+  () => route.query.seed,
+  (value) => {
+    if (typeof value === 'string' && value && value !== gameSeed.value) {
+      gameSeed.value = value
+      generateWorld()
+    }
+  },
+)
+
 onMounted(() => {
-  newKey()
+  loadFromUrl()
   const loop = () => {
     const g = game.value
     stats.torches = g.torches
@@ -149,8 +173,13 @@ onBeforeUnmount(() => {
   game.value.stop()
 })
 
+function randomSeed() {
+  return Math.random().toString(36).split('.')[1]!.substring(0, 4)
+}
+
 function newKey() {
-  gameSeed.value = Math.random().toString(36).split('.')[1]!.substring(0, 4)
+  gameSeed.value = randomSeed()
+  router.push({ query: { ...route.query, seed: gameSeed.value } })
   generateWorld()
 }
 

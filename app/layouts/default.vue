@@ -2,14 +2,28 @@
   <v-app>
     <v-app-bar>
       <v-toolbar-title>{{ title }}</v-toolbar-title>
+      <!-- Switching sims keeps the query string, so the seed in the URL
+           carries over and both pages show the same cave system. -->
       <v-btn-toggle
         :model-value="route.path"
         density="comfortable"
         divided
         class="mr-4"
       >
-        <v-btn to="/" value="/" prepend-icon="mdi-water">Fluid</v-btn>
-        <v-btn to="/dom" value="/dom" prepend-icon="mdi-view-grid">DOM</v-btn>
+        <v-btn
+          :to="{ path: '/', query: route.query }"
+          value="/"
+          prepend-icon="mdi-water"
+        >
+          Fluid
+        </v-btn>
+        <v-btn
+          :to="{ path: '/dom', query: route.query }"
+          value="/dom"
+          prepend-icon="mdi-view-grid"
+        >
+          DOM
+        </v-btn>
       </v-btn-toggle>
     </v-app-bar>
 

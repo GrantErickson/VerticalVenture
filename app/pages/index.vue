@@ -1,7 +1,6 @@
 <template>
   <div>
     <FluidControls
-      v-model:seed="seed"
       v-model:drains="drains"
       @new-key="newKey"
       @reset="generateWorld"
@@ -40,11 +39,11 @@ const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 const {
   game,
   fluid,
-  seed,
   drains,
   changes,
   stats,
   terrainVersion,
+  loadFromUrl,
   newKey,
   generateWorld,
   addWater,
@@ -84,7 +83,7 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(fit)
   resizeObserver.observe(element)
 
-  newKey()
+  loadFromUrl()
   pushTerrain()
 
   const loop = () => {

@@ -29,6 +29,8 @@ const MAX_PARTICLES = 96000
  */
 export function useFluidWorld() {
   const { settings } = useFluidSettings()
+  const route = useRoute()
+  const router = useRouter()
   const seed = ref('')
   const drains = ref(false)
   const changes = ref(0)
@@ -134,10 +136,42 @@ export function useFluidWorld() {
     stats.particles = fluid.value.count
   }
 
-  function newKey() {
-    seed.value = Math.random().toString(36).split('.')[1]!.substring(0, 4)
+  function randomSeed() {
+    return Math.random().toString(36).split('.')[1]!.substring(0, 4)
+  }
+
+  /**
+   * Adopt the seed in the URL, minting one into it first if the address was
+   * blank, and build that world. The URL is the only home the seed has, so
+   * the address bar is always shareable and a plain browser refresh comes
+   * back to the same world.
+   */
+  function loadFromUrl() {
+    const fromUrl = typeof route.query.seed === 'string' ? route.query.seed : ''
+    seed.value = fromUrl || randomSeed()
+    if (!fromUrl)
+      router.replace({ query: { ...route.query, seed: seed.value } })
     generateWorld()
   }
+
+  /** A fresh seed, pushed into the URL so back walks through old worlds. */
+  function newKey() {
+    seed.value = randomSeed()
+    router.push({ query: { ...route.query, seed: seed.value } })
+    generateWorld()
+  }
+
+  // Back/forward navigation changes the seed without touching the page, and
+  // a shared link pasted over the current one should take effect too.
+  watch(
+    () => route.query.seed,
+    (value) => {
+      if (typeof value === 'string' && value && value !== seed.value) {
+        seed.value = value
+        generateWorld()
+      }
+    },
+  )
 
   /** A row of water along the top of the world, as on the other pages. */
   function addWater() {
@@ -221,6 +255,7 @@ export function useFluidWorld() {
     changes,
     stats,
     terrainVersion,
+    loadFromUrl,
     newKey,
     generateWorld,
     addWater,

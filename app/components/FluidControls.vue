@@ -1,17 +1,27 @@
 <template>
   <div>
     <v-row align="center">
-      <v-col cols="2">
-        <v-text-field
-          v-model="seed"
-          label="Seed"
-          append-icon="mdi-refresh"
-          hide-details
-          @click:append="$emit('newKey')"
-        />
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          aria-label="New world"
+          @click="$emit('newKey')"
+        >
+          <v-icon>mdi-refresh</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            New world — a fresh seed goes into the URL, so the address bar is
+            always shareable
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="1">
-        <v-btn @click="$emit('reset')">Reset</v-btn>
+      <v-col cols="auto">
+        <v-btn @click="$emit('reset')">
+          Reset
+          <v-tooltip activator="parent" location="bottom">
+            Rebuild this same world from its seed
+          </v-tooltip>
+        </v-btn>
       </v-col>
       <v-col cols="auto">
         <v-btn
@@ -58,6 +68,5 @@ defineEmits<{
   addWater: []
 }>()
 
-const seed = defineModel<string>('seed', { required: true })
 const drains = defineModel<boolean>('drains', { required: true })
 </script>
