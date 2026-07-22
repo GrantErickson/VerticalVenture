@@ -1,28 +1,44 @@
 <template>
   <v-app>
-    <v-navigation-drawer v-model="drawer" :rail="miniVariant">
-      <v-list nav>
-        <v-list-item
-          v-for="(item, i) in items"
-          :key="i"
-          :to="item.to"
-          :prepend-icon="item.icon"
-          :title="item.title"
-          exact
-        />
-      </v-list>
-    </v-navigation-drawer>
-
     <v-app-bar>
-      <v-app-bar-nav-icon @click.stop="drawer = !drawer" />
-      <v-btn
-        icon="mdi-chevron-left"
-        :class="{ 'flip-x': miniVariant }"
-        @click.stop="miniVariant = !miniVariant"
-      />
       <v-toolbar-title>{{ title }}</v-toolbar-title>
-      <v-spacer />
-      <v-btn icon="mdi-menu" @click.stop="rightDrawer = !rightDrawer" />
+      <!-- Switching sims keeps the query string, so the seed in the URL
+           carries over and both pages show the same cave system. -->
+      <v-btn-toggle
+        :model-value="route.path"
+        density="comfortable"
+        divided
+        class="mr-4"
+      >
+        <v-btn
+          :to="{ path: '/', query: route.query }"
+          value="/"
+          prepend-icon="mdi-water"
+        >
+          Fluid
+        </v-btn>
+        <v-btn
+          :to="{ path: '/dom', query: route.query }"
+          value="/dom"
+          prepend-icon="mdi-view-grid"
+        >
+          DOM
+        </v-btn>
+      </v-btn-toggle>
+      <v-btn
+        icon
+        variant="text"
+        href="https://github.com/GrantErickson/VerticalVenture"
+        target="_blank"
+        rel="noopener"
+        aria-label="Source on GitHub"
+        class="mr-2"
+      >
+        <v-icon>mdi-github</v-icon>
+        <v-tooltip activator="parent" location="bottom">
+          Source on GitHub
+        </v-tooltip>
+      </v-btn>
     </v-app-bar>
 
     <v-main>
@@ -31,16 +47,6 @@
       </v-container>
     </v-main>
 
-    <v-navigation-drawer v-model="rightDrawer" location="right" temporary>
-      <v-list nav>
-        <v-list-item
-          prepend-icon="mdi-repeat"
-          title="Close"
-          @click="rightDrawer = false"
-        />
-      </v-list>
-    </v-navigation-drawer>
-
     <v-footer app>
       <span>&copy; {{ new Date().getFullYear() }}</span>
     </v-footer>
@@ -48,16 +54,6 @@
 </template>
 
 <script setup lang="ts">
-const drawer = ref(false)
-const rightDrawer = ref(false)
-const miniVariant = ref(false)
+const route = useRoute()
 const title = 'Vertical Venture'
-
-const items = [{ icon: 'mdi-apps', title: 'Welcome', to: '/' }]
 </script>
-
-<style scoped>
-.flip-x {
-  transform: scaleX(-1);
-}
-</style>

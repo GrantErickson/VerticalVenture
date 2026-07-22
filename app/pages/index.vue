@@ -1,281 +1,203 @@
 <template>
   <div>
-    <v-row>
-      <v-col cols="2">
-        <v-text-field
-          v-model="gameSeed"
-          label="Seed"
-          append-icon="mdi-refresh"
-          @click:append="newKey"
-        />
-      </v-col>
-      <v-col cols="1" class="pt-6">
-        <v-btn @click="generateWorld">Reset</v-btn>
-      </v-col>
-      <v-col cols="2" class="pt-6">
-        <v-btn @click="addLotsOfWater">Add Water</v-btn>
-      </v-col>
-      <v-col cols="2">
-        <v-switch v-model="drains" label="Drain" />
-      </v-col>
-      <v-col cols="3">
-        <v-switch v-model="dark" label="Dark (shift-click to add lights)" />
-      </v-col>
-      <v-col cols="2">
-        <v-switch v-model="scrolling" label="Scroll" />
-      </v-col>
-    </v-row>
+    <FluidControls
+      v-model:drains="drains"
+      v-model:dark="dark"
+      v-model:scrolling="scrolling"
+      @new-key="newKey"
+      @reset="generateWorld"
+      @add-water="addWater"
+    />
 
-    <div
+    <canvas
+      ref="canvas"
       class="world"
-      :data-frame="frame"
-      :class="{ scrolling: scrolling }"
-      :style="{
-        width: game.width * game.blockSize + 'px',
-        height: (game.height - (scrolling ? 1 : 0)) * game.blockSize + 'px',
-      }"
-    >
-      <template v-for="(row, rowIndex) in game.world.blocks" :key="rowIndex">
-        <div
-          v-for="block in row"
-          :id="block.key"
-          :key="block.key"
-          class="block"
-          :class="{
-            flowing: block.isFlowing,
-            static: !block.isFlowing,
-          }"
-          :style="{
-            top:
-              game.heightInPx - (block.y + 1) * 20 - game.scrollOffset + 'px',
-            left: block.x * 20 + 'px',
-          }"
-          @click="clickBlock(block, $event)"
-          @mouseover="hoverBlock(block)"
-          @mouseleave="leaveBlock(block)"
-        >
-          <div
-            class="fill"
-            :style="{
-              background: block.blockType.background,
-              backgroundImage: `url(/${block.blockType.image})`,
-              height: block.isFlowing ? '100%' : block.percentFilled + '%',
-              width: block.isFlowing ? block.percentFilled + '%' : '100%',
-            }"
-          />
-          <div v-if="block.item" class="item">
-            {{ block.item ? '🔦' : '' }}
-          </div>
-          <div class="overlay" :style="{ opacity: 0.97 - block.brightness }" />
-        </div>
-      </template>
+      :style="{ maxWidth: WORLD_WIDTH * 20 + 'px' }"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+    />
+
+    <div class="text-caption text-medium-emphasis mt-2">
+      Click or drag on the world to dig and fill blocks. Shift-click places or
+      removes a torch.
     </div>
 
-    <v-row class="mt-2">
-      <v-col cols="1">Lights: {{ stats.torches }}</v-col>
-      <v-col cols="2">Water: {{ stats.waterBlocks }}</v-col>
+    <v-row class="mt-0">
+      <v-col cols="2">Particles: {{ stats.particles }}</v-col>
       <v-col cols="2">Changes: {{ changes }}</v-col>
-      <v-col cols="2">Blocks Lit: {{ stats.blocksLit }}</v-col>
-      <v-col cols="1">FPS: {{ stats.framesPerSecond }}</v-col>
-      <v-col cols="2">Frame Time: {{ stats.msPerTick }}</v-col>
+      <v-col cols="2">FPS: {{ stats.framesPerSecond }}</v-col>
+      <v-col cols="3">Sim Time: {{ stats.msPerStep }} ms</v-col>
     </v-row>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Game } from '~/scripts/game'
-import type { Block } from '~/scripts/block'
+import { FluidRenderer } from '~/scripts/fluid/fluidRenderer'
 import { BlockNature } from '~/scripts/blockType'
-import { Item } from '~/scripts/item'
 
-// `shallowRef`, so the 1250 blocks stay plain objects. Making them deeply
-// reactive costs ~50x per simulation tick (0.17ms -> 8.6ms measured), because
-// the game loop touches every block several times per tick and each access
-// pays proxy + dependency-tracking overhead.
-//
-// Instead, rendering is driven by `frame`, bumped once per animation frame and
-// read by the template (see :data-frame on .world). That re-runs the render
-// effect, which re-reads the raw blocks — so simulation runs at its own rate
-// and painting happens at most once per frame.
-const game = shallowRef(new Game(50, 25))
-const frame = ref(0)
-const gameSeed = ref('')
-const changes = ref(0)
+const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 
-// The counters below are rendered inside <v-col> slots. Vue only re-invokes a
-// child component's slot when a *reactive* dependency read inside it changes,
-// and the game instance is deliberately raw — so read them off the game once
-// per frame into reactive state rather than binding the raw fields directly.
-const stats = reactive({
-  torches: 0,
-  waterBlocks: 0,
-  blocksLit: 0,
-  framesPerSecond: 0,
-  msPerTick: 0,
-})
+const {
+  game,
+  fluid,
+  drains,
+  dark,
+  scrolling,
+  scrollOffset,
+  changes,
+  stats,
+  terrainVersion,
+  lightVersion,
+  loadFromUrl,
+  newKey,
+  generateWorld,
+  addWater,
+  isSolidBlock,
+  paintBlock,
+  toggleTorch,
+  step,
+} = useFluidWorld()
 
-// Same reason: these drive <v-switch> props, so the UI owns them and pushes
-// into the raw game. Binding game.drains/dark/isScrolling directly leaves the
-// switch stuck in its old position even though the game state has changed.
-const drains = ref(false)
-const dark = ref(false)
-const scrolling = ref(false)
-
-watch(drains, (v) => (game.value.drains = v))
-watch(dark, (v) => (game.value.dark = v))
-watch(scrolling, (v) => (game.value.isScrolling = v))
-
+let renderer: FluidRenderer | null = null
+let resizeObserver: ResizeObserver | null = null
 let rafHandle = 0
+let start = 0
+
+function pushTerrain() {
+  const world = game.value.world
+  renderer?.setBlocks(
+    (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
+    (x, y) => world.getBlock(x, y)?.item != null,
+  )
+}
+
+function pushLight() {
+  const world = game.value.world
+  renderer?.setLight(
+    (x, y) => world.getBlock(x, y)?.brightness ?? 0,
+    dark.value,
+  )
+}
+
+// The renderer keeps its own copies of the rock and the lighting, so they only
+// need rebuilding when something actually changes rather than every frame.
+watch(terrainVersion, pushTerrain)
+watch(lightVersion, pushLight)
 
 onMounted(() => {
-  newKey()
+  const element = canvas.value!
+  renderer = new FluidRenderer(
+    element,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+    CELLS_PER_BLOCK,
+    fluid.value.maxParticles,
+  )
+
+  const fit = () => renderer?.setSize(element.clientWidth, element.clientHeight)
+  fit()
+  resizeObserver = new ResizeObserver(fit)
+  resizeObserver.observe(element)
+
+  loadFromUrl()
+  pushTerrain()
+  pushLight()
+
   const loop = () => {
-    const g = game.value
-    stats.torches = g.torches
-    stats.waterBlocks = g.waterBlocks
-    stats.blocksLit = g.blocksLit
-    stats.framesPerSecond = g.framesPerSecond
-    stats.msPerTick = g.msPerTick
-    frame.value++
+    if (!start) start = performance.now()
+    // A fixed step: if the machine cannot keep up the water runs slow rather
+    // than exploding, which is the right way round for a solver like this.
+    step(1 / 60)
+    renderer?.render(
+      fluid.value,
+      (performance.now() - start) / 1000,
+      scrollOffset() * CELLS_PER_BLOCK,
+    )
     rafHandle = requestAnimationFrame(loop)
   }
   loop()
 })
 
-// The game owns two intervals; without this they outlive the page.
 onBeforeUnmount(() => {
   cancelAnimationFrame(rafHandle)
-  game.value.isScrolling = false
-  game.value.stop()
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  renderer?.dispose()
+  renderer = null
 })
 
-function newKey() {
-  gameSeed.value = Math.random().toString(36).split('.')[1]!.substring(0, 4)
-  generateWorld()
+// Click paints one block; click and drag paints everything the pointer
+// crosses. The block under the first press picks the mode for the whole
+// stroke — dig if it was rock, fill if it was open — so a stroke never
+// flickers blocks back and forth as it passes over a mix of both.
+let painting = false
+let paintSolid = false
+let lastBlockX = -1
+let lastBlockY = -1
+
+function blockAt(event: PointerEvent): { x: number; y: number } | null {
+  const element = canvas.value
+  if (!element) return null
+  const rect = element.getBoundingClientRect()
+  const x = Math.floor(((event.clientX - rect.left) / rect.width) * WORLD_WIDTH)
+  // Canvas y runs down the screen, the world's y runs up it.
+  const fromTop = ((event.clientY - rect.top) / rect.height) * WORLD_HEIGHT
+  return { x, y: Math.floor(WORLD_HEIGHT - fromTop) }
 }
 
-function generateWorld() {
-  game.value.isScrolling = false
-  game.value.stop()
-
-  const next = new Game(50, 25)
-  next.createRandomWorld(gameSeed.value)
-  // Carry the switch positions over, otherwise the toggles would still read
-  // "on" while the fresh game had them off.
-  next.drains = drains.value
-  next.dark = dark.value
-  next.isScrolling = scrolling.value
-  next.start()
-
-  game.value = next
-  changes.value = 0
-}
-
-function addLotsOfWater() {
-  for (let x = 0; x < game.value.world.width; x++) {
-    const block = game.value.world.getBlock(x, game.value.world.height - 1)!
-    if (block.blockType.nature === BlockNature.empty)
-      block.blockType = game.value.world.getBlockType('water')
-  }
-}
-
-function hoverBlock(block: Block | null) {
-  if (block) game.value.world.addLight(block)
-}
-
-function leaveBlock(block: Block | null) {
-  if (block && !block.item?.luminosity) game.value.world.removeLight(block)
-}
-
-function clickBlock(block: Block, event: MouseEvent) {
+function onPointerDown(event: PointerEvent) {
+  if (event.button !== 0) return
+  const cell = blockAt(event)
+  if (!cell) return
   if (event.shiftKey) {
-    if (block.item) {
-      block.item = null
-    } else {
-      block.item = new Item('torch', 1, 'Torch')
-      game.value.world.processLighting()
-    }
+    toggleTorch(cell.x, cell.y)
     return
   }
+  const solid = isSolidBlock(cell.x, cell.y)
+  if (solid === null) return
+  painting = true
+  paintSolid = !solid
+  canvas.value?.setPointerCapture(event.pointerId)
+  paintBlock(cell.x, cell.y, paintSolid)
+  lastBlockX = cell.x
+  lastBlockY = cell.y
+}
 
-  if (block.blockType.name === 'water') {
-    block.blockType = game.value.world.getBlockType('rock')
-    block.percentFilled = 100
-    block.isFlowing = false
-  } else if (block.blockType.name === 'rock') {
-    block.blockType = game.value.world.getBlockType('empty')
-    block.percentFilled = 0
-  } else if (block.blockType.name === 'empty') {
-    block.blockType = game.value.world.getBlockType('rock')
-    block.percentFilled = 100
-    block.isFlowing = false
+function onPointerMove(event: PointerEvent) {
+  if (!painting) return
+  const cell = blockAt(event)
+  if (!cell || (cell.x === lastBlockX && cell.y === lastBlockY)) return
+  // Walk the whole segment from the last painted block, so a fast drag
+  // paints a continuous stroke instead of a dotted line.
+  const steps = Math.max(
+    Math.abs(cell.x - lastBlockX),
+    Math.abs(cell.y - lastBlockY),
+  )
+  for (let i = 1; i <= steps; i++) {
+    paintBlock(
+      Math.round(lastBlockX + ((cell.x - lastBlockX) * i) / steps),
+      Math.round(lastBlockY + ((cell.y - lastBlockY) * i) / steps),
+      paintSolid,
+    )
   }
-  changes.value++
-  game.value.world.addActiveBlock(block)
-  game.value.world.addActiveBlock(block.blockBelow)
-  game.value.world.addActiveBlock(block.blockLeft)
-  game.value.world.addActiveBlock(block.blockRight)
-  game.value.world.addActiveBlock(block.blockAbove)
+  lastBlockX = cell.x
+  lastBlockY = cell.y
+}
+
+function onPointerUp() {
+  painting = false
 }
 </script>
 
 <style scoped>
-.block {
-  border: 0px solid rgba(50, 50, 10, 0.1);
-  margin: 0px;
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  background-color: transparent;
-  font-size: 0.55em;
-  position: absolute;
-  box-sizing: border-box;
-}
-
 .world {
-  position: relative;
-  background-image: url('https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/0be993e7-c7f4-46f2-aab1-46cbf7c572c5/d3kpvx8-b5b3fe3f-ea8c-4fe0-a26f-20ba52385a01.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzBiZTk5M2U3LWM3ZjQtNDZmMi1hYWIxLTQ2Y2JmN2M1NzJjNVwvZDNrcHZ4OC1iNWIzZmUzZi1lYThjLTRmZTAtYTI2Zi0yMGJhNTIzODVhMDEuanBnIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.sFTYZyh8xXS4wEmQ7SeoafcJFdRVL3k2WOHiefPFADQ');
-  overflow: auto;
-}
-.world.scrolling {
-  overflow: hidden;
-}
-
-.block.static .fill {
-  position: absolute;
-  bottom: 0px;
-  left: 0px;
+  display: block;
   width: 100%;
-  z-index: 500;
-  background-size: cover;
-}
-
-.block.flowing .fill {
-  position: absolute;
-  top: 0px;
-  left: 50%;
-  right: 50%;
-  height: 100%;
-  z-index: 500;
-  background-size: cover;
-}
-
-.block .item {
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 100%;
-  background-color: transparent;
-  z-index: 800;
-}
-
-.block .overlay {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 100%;
-  background-color: #000;
-  z-index: 1000;
+  aspect-ratio: v-bind('`${WORLD_WIDTH} / ${WORLD_HEIGHT}`');
+  border-radius: 2px;
+  /* Dragging paints blocks; without this a touch drag scrolls the page. */
+  touch-action: none;
 }
 </style>

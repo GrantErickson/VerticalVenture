@@ -127,6 +127,137 @@ export class Game {
       this.createRandomRow(y)
     }
     this.settleBlocks()
+    this.openCaverns()
+    this.connectCaverns()
+  }
+
+  /**
+   * Smooth the raw noise into caverns. Rock barely attached to anything opens
+   * up and one-block pits close over, which turns the specks the random fill
+   * scatters everywhere into fewer, larger, rounder rooms.
+   */
+  private openCaverns(passes: number = 2) {
+    const world = this.world
+    for (let pass = 0; pass < passes; pass++) {
+      // Each pass reads one consistent snapshot, not a half-edited world.
+      const solid: boolean[] = []
+      for (let x = 0; x < world.width; x++)
+        for (let y = 0; y < world.height; y++)
+          solid[x * world.height + y] =
+            world.getBlock(x, y)!.blockType.nature === BlockNature.solid
+      const solidAt = (x: number, y: number) =>
+        x < 0 || y < 0 || x >= world.width || y >= world.height
+          ? true
+          : solid[x * world.height + y]
+
+      for (let x = 0; x < world.width; x++) {
+        for (let y = 0; y < world.height; y++) {
+          let neighbours = 0
+          for (let dx = -1; dx <= 1; dx++)
+            for (let dy = -1; dy <= 1; dy++)
+              if ((dx || dy) && solidAt(x + dx, y + dy)) neighbours++
+          const block = world.getBlock(x, y)!
+          if (solid[x * world.height + y]) {
+            if (neighbours <= 3) block.blockType = world.getBlockType('empty')
+          } else if (
+            neighbours >= 7 &&
+            block.blockType.nature === BlockNature.empty
+          ) {
+            block.blockType = world.getBlockType('rock')
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Join every open pocket to the largest cavern so water can actually get
+   * around. The random fill and the smoothing above still leave sealed rooms,
+   * and water shut in one has nowhere to go however nicely it settles. Open
+   * cells are flood filled into regions; a lone stray cell is filled back in
+   * as a pit not worth plumbing, and every other region gets an L-shaped
+   * tunnel carved from where it and the main system come closest.
+   */
+  private connectCaverns() {
+    const world = this.world
+    const isOpen = (x: number, y: number) => {
+      const block = world.getBlock(x, y)
+      return block !== null && block.blockType.nature !== BlockNature.solid
+    }
+
+    const seen = new Set<number>()
+    const cellKey = (x: number, y: number) => x * world.height + y
+    const regions: { x: number; y: number }[][] = []
+    for (let x = 0; x < world.width; x++) {
+      for (let y = 0; y < world.height; y++) {
+        if (!isOpen(x, y) || seen.has(cellKey(x, y))) continue
+        const region: { x: number; y: number }[] = []
+        const queue = [{ x, y }]
+        seen.add(cellKey(x, y))
+        while (queue.length > 0) {
+          const cell = queue.pop()!
+          region.push(cell)
+          for (const [dx, dy] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ]) {
+            const nx = cell.x + dx!
+            const ny = cell.y + dy!
+            if (isOpen(nx, ny) && !seen.has(cellKey(nx, ny))) {
+              seen.add(cellKey(nx, ny))
+              queue.push({ x: nx, y: ny })
+            }
+          }
+        }
+        regions.push(region)
+      }
+    }
+    if (regions.length <= 1) return
+
+    regions.sort((a, b) => b.length - a.length)
+    // Close the pits before carving any tunnels, not while: a tunnel is
+    // allowed to run through a pocket, and filling that pocket afterwards
+    // would cut the tunnel it became part of.
+    const rooms = regions.filter((region, r) => {
+      if (r === 0 || region.length >= 3) return true
+      for (const cell of region)
+        world.getBlock(cell.x, cell.y)!.blockType = world.getBlockType('rock')
+      return false
+    })
+
+    const main = rooms[0]!.slice()
+    for (let r = 1; r < rooms.length; r++) {
+      const region = rooms[r]!
+
+      let from = region[0]!
+      let to = main[0]!
+      let bestDistance = Infinity
+      for (const a of region) {
+        for (const b of main) {
+          const distance = Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+          if (distance < bestDistance) {
+            bestDistance = distance
+            from = a
+            to = b
+          }
+        }
+      }
+
+      const carve = (x: number, y: number) => {
+        const block = world.getBlock(x, y)!
+        if (block.blockType.nature === BlockNature.solid) {
+          block.blockType = world.getBlockType('empty')
+        }
+        main.push({ x, y })
+      }
+      for (let x = from.x; x !== to.x; x += Math.sign(to.x - from.x))
+        carve(x, from.y)
+      for (let y = from.y; y !== to.y; y += Math.sign(to.y - from.y))
+        carve(to.x, y)
+      main.push(...region)
+    }
   }
 
   createRandomRow(y: number) {

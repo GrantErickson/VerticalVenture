@@ -1,16 +1,25 @@
 import { describe, expect, test } from 'vitest'
 import { World } from '@/scripts/world'
 
+// addActiveBlock only queues: a block joins world.activeBlocks when
+// processActiveBlocks next reconciles its added/removed lists, at the end of
+// the call. Each test therefore opens with one process call that moves no
+// water — it exists to flush the queue so the water is active for the next.
+
 describe('liquid', () => {
   test('Drain Down', () => {
     const world = new World(100, 25)
 
-    let waterBlock = world.getBlock(0, 24)!
+    const waterBlock = world.getBlock(0, 24)!
     waterBlock.blockType = world.getBlockType('water')
     waterBlock.percentFilled = 100
     expect(waterBlock.blockType.name).toEqual('water')
     expect(waterBlock.percentFilled).toEqual(100)
     world.addActiveBlock(waterBlock)
+    world.processActiveBlocks()
+    expect(waterBlock.percentFilled).toEqual(100)
+
+    // Half flows into the empty block below on every step...
     world.processActiveBlocks()
     expect(waterBlock.percentFilled).toEqual(50)
     world.processActiveBlocks()
@@ -20,9 +29,9 @@ describe('liquid', () => {
     world.processActiveBlocks()
     world.processActiveBlocks()
     world.processActiveBlocks()
+    // ...until what would flow is under amountToEvaporate and the remainder
+    // empties in one go.
     world.processActiveBlocks()
-    //world.processActiveBlocks()
-    //world.processActiveBlocks()
     expect(waterBlock.percentFilled).toEqual(0)
     expect(waterBlock.blockBelow!.percentFilled < 5).toBeTruthy()
   })
@@ -30,21 +39,24 @@ describe('liquid', () => {
   test('Drain Around Solid', () => {
     const world = new World(100, 25)
 
-    let waterBlock = world.getBlock(1, 24)!
+    const waterBlock = world.getBlock(1, 24)!
     waterBlock.blockType = world.getBlockType('water')
     waterBlock.percentFilled = 100
     world.addActiveBlock(waterBlock)
-    let leftBlock = waterBlock.blockLeft!
+    const leftBlock = waterBlock.blockLeft!
     expect(leftBlock).toBeTruthy()
-    let rightBlock = waterBlock.blockRight!
+    const rightBlock = waterBlock.blockRight!
     expect(rightBlock).toBeTruthy()
 
-    let solidBlock = world.getBlock(1, 23)!
+    const solidBlock = world.getBlock(1, 23)!
     solidBlock.blockType = world.getBlockType('rock')!
 
+    world.processActiveBlocks()
     expect(waterBlock.percentFilled).toEqual(100)
     expect(world.activeBlocks.length).toEqual(1)
     expect(solidBlock.blockType.name).toEqual('rock')
+
+    // Blocked below by the rock, the water averages itself with both sides.
     world.processActiveBlocks()
     expect(waterBlock.percentFilled).toEqual(100 / 3)
     expect(world.activeBlocks.includes(leftBlock)).toBeTruthy()
@@ -52,8 +64,11 @@ describe('liquid', () => {
     expect(world.activeBlocks.includes(waterBlock)).toBeTruthy()
     expect(world.activeBlocks.length).toEqual(3)
 
+    // The sides drain down past the rock; the middle, already level with its
+    // neighbours, holds — and stays active only because the flowing sides
+    // re-add it after it asks to retire.
     world.processActiveBlocks()
     expect(waterBlock.percentFilled).toEqual(100 / 3)
-    expect(world.activeBlocks.length).toEqual(8)
+    expect(world.activeBlocks.length).toEqual(6)
   })
 })
