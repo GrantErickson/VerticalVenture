@@ -25,6 +25,20 @@
           DOM
         </v-btn>
       </v-btn-toggle>
+      <v-btn
+        icon
+        variant="text"
+        href="https://github.com/GrantErickson/VerticalVenture"
+        target="_blank"
+        rel="noopener"
+        aria-label="Source on GitHub"
+        class="mr-2"
+      >
+        <v-icon>mdi-github</v-icon>
+        <v-tooltip activator="parent" location="bottom">
+          Source on GitHub
+        </v-tooltip>
+      </v-btn>
     </v-app-bar>
 
     <v-main>
