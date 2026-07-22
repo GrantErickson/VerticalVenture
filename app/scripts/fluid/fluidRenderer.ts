@@ -155,6 +155,7 @@ export class FluidRenderer {
         uBlocks: { value: this.rockTexture },
         uLight: { value: this.lightTexture },
         uDark: { value: 0 },
+        uScroll: { value: 0 },
         uRock: { value: rock },
         uSize: { value: new THREE.Vector2(blockWidth, blockHeight) },
         uTexel: { value: new THREE.Vector2(1 / 512, 1 / 256) },
@@ -202,7 +203,12 @@ export class FluidRenderer {
     this.compositeMaterial.uniforms.uDark!.value = dark ? 1 : 0
   }
 
-  render(fluid: FlipFluid, elapsedSeconds: number) {
+  /**
+   * scrollCells slides everything drawn up by that much (in fluid cells)
+   * without touching the simulation — the smooth glide between the whole-row
+   * steps a scrolling world moves in.
+   */
+  render(fluid: FlipFluid, elapsedSeconds: number, scrollCells: number = 0) {
     if (this.disposed) return
 
     // Particle positions are in fluid cells; the shaders want clip space.
@@ -210,9 +216,10 @@ export class FluidRenderer {
     const toClipY = 2 / fluid.height
     for (let i = 0; i < fluid.count; i++) {
       this.positions[i * 3] = fluid.px[i]! * toClipX - 1
-      this.positions[i * 3 + 1] = fluid.py[i]! * toClipY - 1
+      this.positions[i * 3 + 1] = (fluid.py[i]! + scrollCells) * toClipY - 1
       this.speeds[i] = Math.hypot(fluid.pvx[i]!, fluid.pvy[i]!)
     }
+    this.compositeMaterial.uniforms.uScroll!.value = scrollCells / fluid.height
     const position = this.particles.geometry.getAttribute('position')
     const speed = this.particles.geometry.getAttribute('speed')
     position.needsUpdate = true
@@ -334,6 +341,7 @@ uniform sampler2D uDepth;
 uniform sampler2D uBlocks;
 uniform sampler2D uLight;
 uniform float uDark;
+uniform float uScroll;
 uniform sampler2D uRock;
 uniform vec2 uSize;
 uniform vec2 uTexel;
@@ -353,7 +361,12 @@ float densityAt(vec2 uv) {
 }
 
 void main() {
-  vec2 blockPos = vUv * uSize;
+  // The world-space grids — rock, light, water depth — sample a little lower
+  // while the scroll glides between rows, so they slide in step with the
+  // particles, which are offset on their way in. The density field is already
+  // in screen space and keeps vUv.
+  vec2 wUv = vec2(vUv.x, vUv.y - uScroll);
+  vec2 blockPos = wUv * uSize;
   vec4 blocks = texture2D(uBlocks, (floor(blockPos) + 0.5) / uSize);
   float solid = blocks.r;
 
@@ -377,7 +390,7 @@ void main() {
   // How much water stands above this point, worked out on the grid rather than
   // from the field above, which is flat inside a body and so cannot tell a
   // puddle from the bottom of a lake.
-  float depth = clamp(texture2D(uDepth, vUv).r * 255.0 / 8.0 / 9.0, 0.0, 1.0);
+  float depth = clamp(texture2D(uDepth, wUv).r * 255.0 / 8.0 / 9.0, 0.0, 1.0);
 
   vec3 shallow = vec3(0.36, 0.72, 0.78);
   vec3 deep = vec3(0.02, 0.13, 0.34);
@@ -423,7 +436,7 @@ void main() {
 
   // Night is a multiply down to the torch-lit brightness, with a whisper of
   // ambient left so the caves still read as shapes rather than as nothing.
-  float light = texture2D(uLight, vUv).r;
+  float light = texture2D(uLight, wUv).r;
   col = mix(col, col * (0.05 + 0.95 * light), uDark);
 
   // The torch itself is a small warm flame, drawn over the darkness so it can

@@ -75,6 +75,24 @@
         </v-btn>
       </v-col>
       <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          :color="scrolling ? 'info' : undefined"
+          :aria-label="scrolling ? 'Stop scrolling' : 'Start scrolling'"
+          @click="scrolling = !scrolling"
+        >
+          <v-icon>mdi-chevron-double-up</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{
+              scrolling
+                ? 'Stop the world scrolling'
+                : 'Scroll — the world climbs and fresh rows appear below'
+            }}
+          </v-tooltip>
+        </v-btn>
+      </v-col>
+      <v-col cols="auto">
         <FluidSettings />
       </v-col>
     </v-row>
@@ -90,4 +108,5 @@ defineEmits<{
 
 const drains = defineModel<boolean>('drains', { required: true })
 const dark = defineModel<boolean>('dark', { required: true })
+const scrolling = defineModel<boolean>('scrolling', { required: true })
 </script>

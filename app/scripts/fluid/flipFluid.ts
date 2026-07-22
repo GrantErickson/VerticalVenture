@@ -218,6 +218,11 @@ export class FlipFluid {
     this.removeParticles((x, y) => !this.isSolid(Math.floor(x), Math.floor(y)))
   }
 
+  /** Slide every particle vertically, for a world that scrolls under it. */
+  shiftParticles(dy: number) {
+    for (let i = 0; i < this.count; i++) this.py[i] = this.py[i]! + dy
+  }
+
   // Cells holding water, gathered as the types are worked out, so the pressure
   // sweeps walk only the water instead of the whole grid — in a world that is
   // half rock and air that is most of the work saved.

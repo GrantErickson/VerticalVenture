@@ -3,6 +3,7 @@
     <FluidControls
       v-model:drains="drains"
       v-model:dark="dark"
+      v-model:scrolling="scrolling"
       @new-key="newKey"
       @reset="generateWorld"
       @add-water="addWater"
@@ -43,6 +44,8 @@ const {
   fluid,
   drains,
   dark,
+  scrolling,
+  scrollOffset,
   changes,
   stats,
   terrainVersion,
@@ -107,7 +110,11 @@ onMounted(() => {
     // A fixed step: if the machine cannot keep up the water runs slow rather
     // than exploding, which is the right way round for a solver like this.
     step(1 / 60)
-    renderer?.render(fluid.value, (performance.now() - start) / 1000)
+    renderer?.render(
+      fluid.value,
+      (performance.now() - start) / 1000,
+      scrollOffset() * CELLS_PER_BLOCK,
+    )
     rafHandle = requestAnimationFrame(loop)
   }
   loop()

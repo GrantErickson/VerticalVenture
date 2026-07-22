@@ -35,6 +35,7 @@ export function useFluidWorld() {
   const seed = ref('')
   const drains = ref(false)
   const dark = ref(false)
+  const scrolling = ref(false)
   const changes = ref(0)
   /** Bumped whenever the rock changes, so a renderer knows to re-read it. */
   const terrainVersion = ref(0)
@@ -138,7 +139,44 @@ export function useFluidWorld() {
     }
     changes.value = 0
     stats.particles = fluid.value.count
+    scrollProgress = 0
     relight()
+  }
+
+  // How far into the next row the scroll has glided, 0..1 blocks. Drawn as a
+  // smooth offset; the world itself only ever moves in whole-row steps.
+  let scrollProgress = 0
+  /** Matches the block game's pace: a 20px block at 1px per 100ms. */
+  const SECONDS_PER_ROW = 2
+
+  /** One row of descent: the world slides up and a fresh row rises in. */
+  function scrollRow() {
+    const g = game.value
+    const world = g.world
+    // The same mutation the block game's scroll makes: drop the top row,
+    // grow a fresh random one at the bottom.
+    world.removeRow(WORLD_HEIGHT - 1)
+    world.insertRow(0)
+    g.createRandomRow(0)
+
+    // The terrain just moved up a block, so the water goes with it, and
+    // whatever gets pushed past the top has scrolled off the world. The
+    // predicate names what to KEEP.
+    const f = fluid.value
+    f.shiftParticles(CELLS_PER_BLOCK)
+    f.removeParticles((_x, y) => y < f.height - 1)
+    syncSolids()
+
+    // The fresh row may bring water of its own; cash it in for particles
+    // exactly as at generation time.
+    for (let x = 0; x < WORLD_WIDTH; x++) {
+      const block = world.getBlock(x, 0)!
+      if (block.blockType.nature !== BlockNature.liquid) continue
+      block.blockType = world.getBlockType('empty')
+      fillBlock(x, 0)
+    }
+    stats.particles = f.count
+    if (dark.value) relight()
   }
 
   /**
@@ -240,6 +278,14 @@ export function useFluidWorld() {
       f.removeParticles((_x, y) => y > floor)
     }
 
+    if (scrolling.value) {
+      scrollProgress += dt / SECONDS_PER_ROW
+      if (scrollProgress >= 1) {
+        scrollProgress -= 1
+        scrollRow()
+      }
+    }
+
     f.step(dt)
 
     stepMsThisSecond += performance.now() - started
@@ -284,6 +330,9 @@ export function useFluidWorld() {
     seed,
     drains,
     dark,
+    scrolling,
+    /** The smooth part of the scroll, in blocks, for the renderer. */
+    scrollOffset: () => scrollProgress,
     changes,
     stats,
     terrainVersion,
