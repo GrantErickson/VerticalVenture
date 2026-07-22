@@ -13,19 +13,39 @@
       <v-col cols="1">
         <v-btn @click="$emit('reset')">Reset</v-btn>
       </v-col>
-      <v-col cols="2">
-        <v-btn @click="$emit('addWater')">Add Water</v-btn>
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          aria-label="Add water"
+          @click="$emit('addWater')"
+        >
+          <v-icon>mdi-water-plus</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            Pour a layer of water in along the top
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="2">
-        <v-switch v-model="drains" label="Drain" hide-details />
+      <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          :color="drains ? 'info' : undefined"
+          :aria-label="drains ? 'Close the drain' : 'Open the drain'"
+          @click="drains = !drains"
+        >
+          <v-icon>{{ drains ? 'mdi-valve-open' : 'mdi-valve-closed' }}</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{
+              drains
+                ? 'Drain is open — water is leaving through the floor'
+                : 'Open the drain in the floor'
+            }}
+          </v-tooltip>
+        </v-btn>
       </v-col>
-      <v-col cols="1">
+      <v-col cols="auto">
         <FluidSettings />
-      </v-col>
-      <v-col cols="4">
-        <span class="text-caption text-medium-emphasis">
-          Click to dig or fill a block.
-        </span>
       </v-col>
     </v-row>
   </div>

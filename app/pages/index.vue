@@ -18,7 +18,11 @@
       @pointercancel="onPointerUp"
     />
 
-    <v-row class="mt-2">
+    <div class="text-caption text-medium-emphasis mt-2">
+      Click or drag on the world to dig and fill blocks.
+    </div>
+
+    <v-row class="mt-0">
       <v-col cols="2">Particles: {{ stats.particles }}</v-col>
       <v-col cols="2">Changes: {{ changes }}</v-col>
       <v-col cols="2">FPS: {{ stats.framesPerSecond }}</v-col>
