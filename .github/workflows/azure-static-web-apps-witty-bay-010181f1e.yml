@@ -36,9 +36,16 @@ jobs:
           action: 'upload'
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: '/' # App source code path
+          #
+          # The site is fully static — `nuxt generate` above builds it.
+          # skip_app_build stops the deploy action rebuilding it with Oryx:
+          # inside that container Nitro detects Azure and silently switches to
+          # its serverless preset, which puts the app behind an Azure Function
+          # that never gets deployed, and the whole site 404s.
+          skip_app_build: true
+          app_location: '.output/public' # Upload the generated site as-is
           api_location: '' # Api source code path - optional
-          output_location: '.output/public' # Built app content directory - optional
+          output_location: '' # Unused when skip_app_build is true
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
@@ -52,3 +59,4 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WITTY_BAY_010181F1E }}
           action: 'close'
+          app_location: '.output/public' # Unused by 'close', required by the schema
