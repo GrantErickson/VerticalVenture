@@ -201,7 +201,7 @@ export function useFluidWorld() {
     },
   )
 
-  /** A row of water along the top of the world, as on the other pages. */
+  /** A row of water along the top of the world, as on the /dom page. */
   function addWater() {
     for (let x = 0; x < WORLD_WIDTH; x++) fillBlock(x, WORLD_HEIGHT - 1)
     stats.particles = fluid.value.count
