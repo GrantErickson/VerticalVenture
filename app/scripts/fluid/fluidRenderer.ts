@@ -36,6 +36,8 @@ export class FluidRenderer {
   private compositeMaterial: THREE.ShaderMaterial
   private rockTexture: THREE.DataTexture
   private rockData: Uint8Array
+  private lightTexture: THREE.DataTexture
+  private lightData: Uint8Array
   private depthTexture: THREE.DataTexture
   private depthData: Uint8Array
   private blockWidth: number
@@ -115,6 +117,19 @@ export class FluidRenderer {
     this.rockTexture.magFilter = THREE.NearestFilter
     this.rockTexture.needsUpdate = true
 
+    // Block brightness for dark mode. Linear filtering, so torchlight falls
+    // off in a smooth pool instead of block-shaped steps.
+    this.lightData = new Uint8Array(blockWidth * blockHeight)
+    this.lightTexture = new THREE.DataTexture(
+      this.lightData,
+      blockWidth,
+      blockHeight,
+      THREE.RedFormat,
+    )
+    this.lightTexture.minFilter = THREE.LinearFilter
+    this.lightTexture.magFilter = THREE.LinearFilter
+    this.lightTexture.needsUpdate = true
+
     this.depthData = new Uint8Array(cellWidth * cellHeight)
     this.depthTexture = new THREE.DataTexture(
       this.depthData,
@@ -138,6 +153,8 @@ export class FluidRenderer {
         uDensity: { value: this.density.texture },
         uDepth: { value: this.depthTexture },
         uBlocks: { value: this.rockTexture },
+        uLight: { value: this.lightTexture },
+        uDark: { value: 0 },
         uRock: { value: rock },
         uSize: { value: new THREE.Vector2(blockWidth, blockHeight) },
         uTexel: { value: new THREE.Vector2(1 / 512, 1 / 256) },
@@ -155,15 +172,34 @@ export class FluidRenderer {
     this.renderer.setSize(cssWidth, cssHeight, false)
   }
 
-  /** Rebuild the rock layer. Only needed when the terrain actually changes. */
-  setBlocks(isSolid: (x: number, y: number) => boolean) {
+  /**
+   * Rebuild the rock and torch layer. Only needed when the terrain or the
+   * torches actually change.
+   */
+  setBlocks(
+    isSolid: (x: number, y: number) => boolean,
+    hasTorch: (x: number, y: number) => boolean = () => false,
+  ) {
     for (let x = 0; x < this.blockWidth; x++) {
       for (let y = 0; y < this.blockHeight; y++) {
         const i = (y * this.blockWidth + x) * 4
         this.rockData[i] = isSolid(x, y) ? 255 : 0
+        this.rockData[i + 2] = hasTorch(x, y) ? 255 : 0
       }
     }
     this.rockTexture.needsUpdate = true
+  }
+
+  /** How lit each block is, and whether that matters at all right now. */
+  setLight(brightness: (x: number, y: number) => number, dark: boolean) {
+    for (let x = 0; x < this.blockWidth; x++) {
+      for (let y = 0; y < this.blockHeight; y++) {
+        const lit = Math.min(Math.max(brightness(x, y), 0), 1)
+        this.lightData[y * this.blockWidth + x] = Math.round(lit * 255)
+      }
+    }
+    this.lightTexture.needsUpdate = true
+    this.compositeMaterial.uniforms.uDark!.value = dark ? 1 : 0
   }
 
   render(fluid: FlipFluid, elapsedSeconds: number) {
@@ -244,6 +280,7 @@ export class FluidRenderer {
 
   dispose() {
     this.disposed = true
+    this.lightTexture.dispose()
     this.depthTexture.dispose()
     this.density.dispose()
     this.particles.geometry.dispose()
@@ -295,6 +332,8 @@ precision highp float;
 uniform sampler2D uDensity;
 uniform sampler2D uDepth;
 uniform sampler2D uBlocks;
+uniform sampler2D uLight;
+uniform float uDark;
 uniform sampler2D uRock;
 uniform vec2 uSize;
 uniform vec2 uTexel;
@@ -315,7 +354,8 @@ float densityAt(vec2 uv) {
 
 void main() {
   vec2 blockPos = vUv * uSize;
-  float solid = texture2D(uBlocks, (floor(blockPos) + 0.5) / uSize).r;
+  vec4 blocks = texture2D(uBlocks, (floor(blockPos) + 0.5) / uSize);
+  float solid = blocks.r;
 
   vec3 cave = vec3(0.045, 0.040, 0.055);
   vec3 rock = texture2D(uRock, blockPos).rgb;
@@ -380,6 +420,17 @@ void main() {
   // Rock in front of the water rather than behind it, so a splash against a
   // wall is cut off at the wall instead of smeared over it.
   col = mix(col, rock, solid);
+
+  // Night is a multiply down to the torch-lit brightness, with a whisper of
+  // ambient left so the caves still read as shapes rather than as nothing.
+  float light = texture2D(uLight, vUv).r;
+  col = mix(col, col * (0.05 + 0.95 * light), uDark);
+
+  // The torch itself is a small warm flame, drawn over the darkness so it can
+  // always be found again — and faintly by day, so it can be picked back up.
+  vec2 inBlock = fract(blockPos) - 0.5;
+  float flame = blocks.b * (1.0 - smoothstep(0.10, 0.28, length(inBlock)));
+  col = mix(col, vec3(1.0, 0.8, 0.35), flame * (0.35 + 0.65 * uDark));
 
   gl_FragColor = vec4(col, 1.0);
 }

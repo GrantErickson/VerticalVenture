@@ -1,5 +1,6 @@
 import { Game } from '~/scripts/game'
 import { BlockNature } from '~/scripts/blockType'
+import { Item } from '~/scripts/item'
 import { FlipFluid } from '~/scripts/fluid/flipFluid'
 
 /** World size in blocks for the fluid page. */
@@ -33,9 +34,12 @@ export function useFluidWorld() {
   const router = useRouter()
   const seed = ref('')
   const drains = ref(false)
+  const dark = ref(false)
   const changes = ref(0)
   /** Bumped whenever the rock changes, so a renderer knows to re-read it. */
   const terrainVersion = ref(0)
+  /** Bumped whenever block lighting is recomputed. */
+  const lightVersion = ref(0)
 
   const stats = reactive({
     particles: 0,
@@ -134,6 +138,30 @@ export function useFluidWorld() {
     }
     changes.value = 0
     stats.particles = fluid.value.count
+    relight()
+  }
+
+  /**
+   * Recompute block brightness from the torches. Cheap enough to run on every
+   * event that can move light around — torches and terrain — but not needed
+   * per frame, because nothing else in this world ever moves a light.
+   */
+  function relight() {
+    game.value.world.processLighting()
+    lightVersion.value++
+  }
+  watch(dark, relight)
+
+  /** Place a torch on an open block, or pick up the one already there. */
+  function toggleTorch(blockX: number, blockY: number) {
+    const block = game.value.world.getBlock(blockX, blockY)
+    if (!block || block.blockType.nature === BlockNature.solid) return
+    // The Block item setter registers and unregisters the light itself.
+    block.item = block.item ? null : new Item('torch', 1, 'Torch')
+    changes.value++
+    // The renderer carries torch positions alongside the rock layer.
+    terrainVersion.value++
+    relight()
   }
 
   function randomSeed() {
@@ -192,8 +220,11 @@ export function useFluidWorld() {
     if (!block) return
     if ((block.blockType.nature === BlockNature.solid) === makeSolid) return
     block.blockType = world.getBlockType(makeSolid ? 'rock' : 'empty')
+    // Filling over a torch buries it; a light inside rock is no light at all.
+    if (makeSolid && block.item) block.item = null
     changes.value++
     syncSolids()
+    if (dark.value) relight()
     // Filling a block in can bury water. Anything with nowhere to go is gone.
     if (makeSolid) fluid.value.evictFromSolids()
   }
@@ -252,15 +283,18 @@ export function useFluidWorld() {
     fluid,
     seed,
     drains,
+    dark,
     changes,
     stats,
     terrainVersion,
+    lightVersion,
     loadFromUrl,
     newKey,
     generateWorld,
     addWater,
     isSolidBlock,
     paintBlock,
+    toggleTorch,
     step,
   }
 }

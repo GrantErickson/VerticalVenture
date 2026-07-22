@@ -2,6 +2,7 @@
   <div>
     <FluidControls
       v-model:drains="drains"
+      v-model:dark="dark"
       @new-key="newKey"
       @reset="generateWorld"
       @add-water="addWater"
@@ -18,7 +19,8 @@
     />
 
     <div class="text-caption text-medium-emphasis mt-2">
-      Click or drag on the world to dig and fill blocks.
+      Click or drag on the world to dig and fill blocks. Shift-click places or
+      removes a torch.
     </div>
 
     <v-row class="mt-0">
@@ -40,15 +42,18 @@ const {
   game,
   fluid,
   drains,
+  dark,
   changes,
   stats,
   terrainVersion,
+  lightVersion,
   loadFromUrl,
   newKey,
   generateWorld,
   addWater,
   isSolidBlock,
   paintBlock,
+  toggleTorch,
   step,
 } = useFluidWorld()
 
@@ -61,12 +66,22 @@ function pushTerrain() {
   const world = game.value.world
   renderer?.setBlocks(
     (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
+    (x, y) => world.getBlock(x, y)?.item != null,
   )
 }
 
-// The renderer keeps its own copy of the rock, so it only needs rebuilding when
-// the terrain actually changes rather than every frame.
+function pushLight() {
+  const world = game.value.world
+  renderer?.setLight(
+    (x, y) => world.getBlock(x, y)?.brightness ?? 0,
+    dark.value,
+  )
+}
+
+// The renderer keeps its own copies of the rock and the lighting, so they only
+// need rebuilding when something actually changes rather than every frame.
 watch(terrainVersion, pushTerrain)
+watch(lightVersion, pushLight)
 
 onMounted(() => {
   const element = canvas.value!
@@ -85,6 +100,7 @@ onMounted(() => {
 
   loadFromUrl()
   pushTerrain()
+  pushLight()
 
   const loop = () => {
     if (!start) start = performance.now()
@@ -128,6 +144,10 @@ function onPointerDown(event: PointerEvent) {
   if (event.button !== 0) return
   const cell = blockAt(event)
   if (!cell) return
+  if (event.shiftKey) {
+    toggleTorch(cell.x, cell.y)
+    return
+  }
   const solid = isSolidBlock(cell.x, cell.y)
   if (solid === null) return
   painting = true

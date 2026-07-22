@@ -55,6 +55,26 @@
         </v-btn>
       </v-col>
       <v-col cols="auto">
+        <v-btn
+          icon
+          variant="text"
+          :color="dark ? 'secondary' : undefined"
+          :aria-label="dark ? 'Turn the lights on' : 'Turn the lights off'"
+          @click="dark = !dark"
+        >
+          <v-icon>
+            {{ dark ? 'mdi-weather-night' : 'mdi-lightbulb-on-outline' }}
+          </v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{
+              dark
+                ? 'Turn the lights back on'
+                : 'Go dark and see by torchlight — shift-click places torches'
+            }}
+          </v-tooltip>
+        </v-btn>
+      </v-col>
+      <v-col cols="auto">
         <FluidSettings />
       </v-col>
     </v-row>
@@ -69,4 +89,5 @@ defineEmits<{
 }>()
 
 const drains = defineModel<boolean>('drains', { required: true })
+const dark = defineModel<boolean>('dark', { required: true })
 </script>
