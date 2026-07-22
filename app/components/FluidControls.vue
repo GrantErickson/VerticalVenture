@@ -28,14 +28,10 @@
         </span>
       </v-col>
     </v-row>
-
-    <RendererTabs active="fluid" :blurb="blurb" />
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{ blurb: string }>()
-
 defineEmits<{
   newKey: []
   reset: []

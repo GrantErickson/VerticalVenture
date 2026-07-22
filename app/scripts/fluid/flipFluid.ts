@@ -2,10 +2,10 @@
  * A FLIP/PIC water simulation.
  *
  * This is a second, unrelated take on the water in this game. The original
- * engine (see waterProcessor.ts) models water as an amount per block and settles
- * connected bodies to a level; it is cheap and always comes to rest, but it can
- * only ever move water a whole block at a time and has no notion of momentum, so
- * nothing sloshes, splashes or flows sideways under its own weight.
+ * engine (see liquidBlockType.ts) models water as an amount per block, moving
+ * it down and averaging it sideways a block at a time; it is cheap and easy to
+ * reason about, but it has no notion of momentum, so nothing sloshes, splashes
+ * or flows sideways under its own weight.
  *
  * This one is the standard hybrid used by real liquid solvers:
  *

@@ -1,7 +1,10 @@
 import { Game } from '~/scripts/game'
 import { BlockNature } from '~/scripts/blockType'
 import { FlipFluid } from '~/scripts/fluid/flipFluid'
-import { WORLD_WIDTH, WORLD_HEIGHT } from './useGame'
+
+/** World size in blocks for the fluid page. */
+export const WORLD_WIDTH = 50
+export const WORLD_HEIGHT = 25
 
 /**
  * How many fluid cells a block is worth along each axis. The simulation is a
@@ -16,11 +19,11 @@ export const CELLS_PER_BLOCK = 2
 const MAX_PARTICLES = 96000
 
 /**
- * The same world as the other two pages, with the block water replaced by a
- * real fluid.
+ * The same world as the /dom page, with the block water replaced by a real
+ * fluid.
  *
  * The terrain still comes from Game's generator, so a seed opened here and on
- * the other pages is the same cave system. Everything below the rock is new:
+ * the /dom page is the same cave system. Everything below the rock is new:
  * the water blocks it generates are cashed in for particles up front and the
  * block grid keeps only the rock from then on.
  */

@@ -1,142 +1,119 @@
 <template>
   <div>
-    <GameControls
-      v-model:seed="gameSeed"
+    <FluidControls
+      v-model:seed="seed"
       v-model:drains="drains"
-      v-model:dark="dark"
-      v-model:scrolling="scrolling"
-      active="dom"
-      blurb="DOM renderer — one absolutely positioned div per block."
       @new-key="newKey"
       @reset="generateWorld"
-      @add-water="addLotsOfWater"
+      @add-water="addWater"
     />
 
-    <div
+    <canvas
+      ref="canvas"
       class="world"
-      :data-frame="frame"
-      :class="{ scrolling: scrolling }"
-      :style="{
-        width: game.width * game.blockSize + 'px',
-        height: (game.height - (scrolling ? 1 : 0)) * game.blockSize + 'px',
-      }"
-    >
-      <template v-for="(row, rowIndex) in game.world.blocks" :key="rowIndex">
-        <div
-          v-for="block in row"
-          :id="block.key"
-          :key="block.key"
-          class="block"
-          :class="{
-            flowing: block.isFlowing,
-            static: !block.isFlowing,
-          }"
-          :style="{
-            top:
-              game.heightInPx - (block.y + 1) * 20 - game.scrollOffset + 'px',
-            left: block.x * 20 + 'px',
-          }"
-          @click="clickBlock(block, $event.shiftKey)"
-          @mouseover="hoverBlock(block)"
-          @mouseleave="leaveBlock(block)"
-        >
-          <div
-            class="fill"
-            :style="{
-              background: block.blockType.background,
-              backgroundImage: `url(/${block.blockType.image})`,
-              height: block.isFlowing ? '100%' : block.percentFilled + '%',
-              width: block.isFlowing ? block.percentFilled + '%' : '100%',
-            }"
-          />
-          <div v-if="block.item" class="item">
-            {{ block.item ? '🔦' : '' }}
-          </div>
-          <div class="overlay" :style="{ opacity: 0.97 - block.brightness }" />
-        </div>
-      </template>
-    </div>
+      :style="{ maxWidth: WORLD_WIDTH * 20 + 'px' }"
+      @click="onClick"
+    />
 
-    <GameStats :stats="stats" :changes="changes" />
+    <v-row class="mt-2">
+      <v-col cols="2">Particles: {{ stats.particles }}</v-col>
+      <v-col cols="2">Changes: {{ changes }}</v-col>
+      <v-col cols="2">FPS: {{ stats.framesPerSecond }}</v-col>
+      <v-col cols="3">Sim Time: {{ stats.msPerStep }} ms</v-col>
+    </v-row>
   </div>
 </template>
 
 <script setup lang="ts">
+import { FluidRenderer } from '~/scripts/fluid/fluidRenderer'
+import { BlockNature } from '~/scripts/blockType'
+
+const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
+
 const {
   game,
-  frame,
-  stats,
-  gameSeed,
-  changes,
+  fluid,
+  seed,
   drains,
-  dark,
-  scrolling,
+  changes,
+  stats,
+  terrainVersion,
   newKey,
   generateWorld,
-  addLotsOfWater,
-  hoverBlock,
-  leaveBlock,
-  clickBlock,
-} = useGame()
+  addWater,
+  toggleBlock,
+  step,
+} = useFluidWorld()
+
+let renderer: FluidRenderer | null = null
+let resizeObserver: ResizeObserver | null = null
+let rafHandle = 0
+let start = 0
+
+function pushTerrain() {
+  const world = game.value.world
+  renderer?.setBlocks(
+    (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
+  )
+}
+
+// The renderer keeps its own copy of the rock, so it only needs rebuilding when
+// the terrain actually changes rather than every frame.
+watch(terrainVersion, pushTerrain)
+
+onMounted(() => {
+  const element = canvas.value!
+  renderer = new FluidRenderer(
+    element,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+    CELLS_PER_BLOCK,
+    fluid.value.maxParticles,
+  )
+
+  const fit = () => renderer?.setSize(element.clientWidth, element.clientHeight)
+  fit()
+  resizeObserver = new ResizeObserver(fit)
+  resizeObserver.observe(element)
+
+  newKey()
+  pushTerrain()
+
+  const loop = () => {
+    if (!start) start = performance.now()
+    // A fixed step: if the machine cannot keep up the water runs slow rather
+    // than exploding, which is the right way round for a solver like this.
+    step(1 / 60)
+    renderer?.render(fluid.value, (performance.now() - start) / 1000)
+    rafHandle = requestAnimationFrame(loop)
+  }
+  loop()
+})
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(rafHandle)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  renderer?.dispose()
+  renderer = null
+})
+
+function onClick(event: MouseEvent) {
+  const element = canvas.value
+  if (!element) return
+  const rect = element.getBoundingClientRect()
+  const x = Math.floor(((event.clientX - rect.left) / rect.width) * WORLD_WIDTH)
+  // Canvas y runs down the screen, the world's y runs up it.
+  const fromTop = ((event.clientY - rect.top) / rect.height) * WORLD_HEIGHT
+  toggleBlock(x, Math.floor(WORLD_HEIGHT - fromTop))
+}
 </script>
 
 <style scoped>
-.block {
-  border: 0px solid rgba(50, 50, 10, 0.1);
-  margin: 0px;
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  background-color: transparent;
-  font-size: 0.55em;
-  position: absolute;
-  box-sizing: border-box;
-}
-
 .world {
-  position: relative;
-  background-image: url('https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/0be993e7-c7f4-46f2-aab1-46cbf7c572c5/d3kpvx8-b5b3fe3f-ea8c-4fe0-a26f-20ba52385a01.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzBiZTk5M2U3LWM3ZjQtNDZmMi1hYWIxLTQ2Y2JmN2M1NzJjNVwvZDNrcHZ4OC1iNWIzZmUzZi1lYThjLTRmZTAtYTI2Zi0yMGJhNTIzODVhMDEuanBnIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.sFTYZyh8xXS4wEmQ7SeoafcJFdRVL3k2WOHiefPFADQ');
-  overflow: auto;
-}
-.world.scrolling {
-  overflow: hidden;
-}
-
-.block.static .fill {
-  position: absolute;
-  bottom: 0px;
-  left: 0px;
+  display: block;
   width: 100%;
-  z-index: 500;
-  background-size: cover;
-}
-
-.block.flowing .fill {
-  position: absolute;
-  top: 0px;
-  left: 50%;
-  right: 50%;
-  height: 100%;
-  z-index: 500;
-  background-size: cover;
-}
-
-.block .item {
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 100%;
-  background-color: transparent;
-  z-index: 800;
-}
-
-.block .overlay {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 100%;
-  background-color: #000;
-  z-index: 1000;
+  aspect-ratio: v-bind('`${WORLD_WIDTH} / ${WORLD_HEIGHT}`');
+  border-radius: 2px;
 }
 </style>
