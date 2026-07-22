@@ -51,9 +51,10 @@ export interface FlipFluidOptions {
   overRelaxation?: number
   /**
    * How hard the pressure solve pushes back when a cell holds more or less than
-   * its share of particles. Crowded cells are always corrected; under-filled
-   * ones only where they are submerged, since a cell at a free surface is meant
-   * to be short of particles.
+   * its share of particles, per unit of *fractional* over- or under-fill.
+   * Crowded cells are always corrected; under-filled ones only where they are
+   * submerged, since a cell at a free surface is meant to be short of
+   * particles.
    */
   driftCorrection?: number
   /**
@@ -103,10 +104,16 @@ export class FlipFluid {
   readonly pvy: Float32Array
 
   /** Particles sit about this far apart when the water is at rest. */
-  readonly spacing = 0.5
-  private readonly radius = 0.25
+  readonly spacing = 0.25
+  private readonly radius = 0.125
 
-  // Counting-sort buckets, one per cell, for finding a particle's neighbours.
+  // Counting-sort buckets for finding a particle's neighbours in the
+  // separation pass, on a grid matched to the rest spacing rather than to the
+  // sim cells. A sim cell is four spacings across, and bucketing at that size
+  // had every particle wading through ~16x the candidates that could possibly
+  // be in range.
+  private readonly sepWidth: number
+  private readonly sepHeight: number
   private readonly cellStart: Int32Array
   private readonly cellEntries: Int32Array
 
@@ -121,12 +128,15 @@ export class FlipFluid {
     // and a sealed tank still settles to a dead stop, but much past this the
     // damping left cannot bleed jitter off faster than FLIP feeds it in.
     this.flipRatio = options.flipRatio ?? 0.97
-    // 30 sweeps and 2 separation passes measured out at about 7ms a frame for
-    // the ~7500 particles a generated world holds, with the water still coming
-    // to a dead stop and no voids opening up under the surface.
+    // 30 sweeps and 2 separation passes measured out at about 4ms a step for
+    // the ~17000 quarter-spacing particles a generated world holds (roughly
+    // 12ms in-browser for an unusually watery seed's 24000), with the water
+    // still coming to a dead stop and no voids opening up under the surface.
     this.pressureIterations = options.pressureIterations ?? 30
     this.overRelaxation = options.overRelaxation ?? 1.9
-    this.driftCorrection = options.driftCorrection ?? 1.0
+    // 4.0 with fractional crowding is exactly what 1.0 was back when crowding
+    // was measured in raw particles and a cell held four of them.
+    this.driftCorrection = options.driftCorrection ?? 4.0
     // Shared per pair per separation pass, so the effective smoothing is about
     // double this number. 0.12 made the water move as one gluey mass; down at
     // 0.03 drops and streams break apart instead of stringing, and with the
@@ -150,7 +160,9 @@ export class FlipFluid {
     this.py = new Float32Array(this.maxParticles)
     this.pvx = new Float32Array(this.maxParticles)
     this.pvy = new Float32Array(this.maxParticles)
-    this.cellStart = new Int32Array(cells + 1)
+    this.sepWidth = Math.round(this.width / this.spacing)
+    this.sepHeight = Math.round(this.height / this.spacing)
+    this.cellStart = new Int32Array(this.sepWidth * this.sepHeight + 1)
     this.cellEntries = new Int32Array(this.maxParticles)
     this.fluidCells = new Int32Array(cells)
     this.submerged = new Uint8Array(cells)
@@ -277,14 +289,17 @@ export class FlipFluid {
     }
   }
 
-  /** Bucket the particles by cell so neighbours are cheap to walk. */
+  /** Bucket the particles by separation-grid cell so neighbours are cheap to
+   * walk. A bucket is one rest spacing across, so anything within minDist of a
+   * particle is in its own bucket or one immediately adjacent. */
   private buildBuckets() {
+    const inv = 1 / this.spacing
     const counts = this.cellStart
     counts.fill(0)
     for (let i = 0; i < this.count; i++) {
-      const ci = this.clampCell(this.px[i]!, this.width)
-      const cj = this.clampCell(this.py[i]!, this.height)
-      counts[this.cellIndex(ci, cj)]!++
+      const ci = this.clampCell(this.px[i]! * inv, this.sepWidth)
+      const cj = this.clampCell(this.py[i]! * inv, this.sepHeight)
+      counts[ci * this.sepHeight + cj]!++
     }
     let total = 0
     for (let c = 0; c < counts.length - 1; c++) {
@@ -293,9 +308,9 @@ export class FlipFluid {
     }
     counts[counts.length - 1] = total
     for (let i = 0; i < this.count; i++) {
-      const ci = this.clampCell(this.px[i]!, this.width)
-      const cj = this.clampCell(this.py[i]!, this.height)
-      const c = this.cellIndex(ci, cj)
+      const ci = this.clampCell(this.px[i]! * inv, this.sepWidth)
+      const cj = this.clampCell(this.py[i]! * inv, this.sepHeight)
+      const c = ci * this.sepHeight + cj
       this.cellEntries[--counts[c]!] = i
     }
   }
@@ -318,27 +333,29 @@ export class FlipFluid {
     const minDist = this.spacing
     const minDistSq = minDist * minDist
 
-    // Every pair is dealt with once, moving both of them. Cells are indexed
-    // column first, so of the eight cells around this one, only these four come
-    // later — the pairs in the other four were already handled from that end.
-    const height = this.height
+    // Every pair is dealt with once, moving both of them. Buckets are indexed
+    // column first, so of the eight buckets around this one, only these four
+    // come later — the pairs in the other four were already handled from that
+    // end.
+    const inv = 1 / this.spacing
+    const sepHeight = this.sepHeight
     const laterI = [0, 1, 1, 1]
     const laterJ = [1, -1, 0, 1]
     const viscosity = this.viscosity
 
     for (let iter = 0; iter < iterations; iter++) {
       for (let i = 0; i < this.count; i++) {
-        const ci = this.clampCell(this.px[i]!, this.width)
-        const cj = this.clampCell(this.py[i]!, this.height)
-        const home = ci * height + cj
+        const ci = this.clampCell(this.px[i]! * inv, this.sepWidth)
+        const cj = this.clampCell(this.py[i]! * inv, sepHeight)
+        const home = ci * sepHeight + cj
 
         for (let n = -1; n < 4; n++) {
           let c = home
           if (n >= 0) {
             const oi = ci + laterI[n]!
             const oj = cj + laterJ[n]!
-            if (oi >= this.width || oj < 0 || oj >= height) continue
-            c = oi * height + oj
+            if (oi >= this.sepWidth || oj < 0 || oj >= sepHeight) continue
+            c = oi * sepHeight + oj
           }
           const end = this.cellStart[c + 1]!
           for (let e = this.cellStart[c]!; e < end; e++) {
@@ -706,7 +723,11 @@ export class FlipFluid {
         let divergence = u[c + height]! - u[c]! + v[vIndex + 1]! - v[vIndex]!
 
         if (this.restDensity > 0 && this.driftCorrection > 0) {
-          const crowding = this.density[c]! - this.restDensity
+          // As a fraction of rest, not a raw particle count, so the strength
+          // of the correction does not silently scale with how many particles
+          // happen to make up a cell of water.
+          const crowding =
+            (this.density[c]! - this.restDensity) / this.restDensity
           // Crowded cells always push back. Under-filled ones pull back in, but
           // only where the cell is submerged — every neighbour is water or rock.
           //

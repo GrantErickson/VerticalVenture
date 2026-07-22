@@ -183,10 +183,11 @@ export class FluidRenderer {
     speed.needsUpdate = true
     this.particles.geometry.setDrawRange(0, fluid.count)
 
-    // A particle covers about three cells across, so neighbours overlap into a
-    // continuous sheet rather than reading as a row of beads.
+    // A particle's blob spans about three times the rest spacing, so
+    // neighbours overlap into a continuous sheet rather than reading as a row
+    // of beads, and finer particles draw as proportionally finer detail.
     const pixelsPerCell = this.density.width / fluid.width
-    const pointSize = Math.max(pixelsPerCell * 3.2, 2)
+    const pointSize = Math.max(pixelsPerCell * fluid.spacing * 6.4, 2)
     this.splatMaterial.uniforms.uPointSize!.value = pointSize
 
     // Scale the blobs so that water packed at its resting spacing sums to 1,
@@ -195,11 +196,14 @@ export class FluidRenderer {
     // anything changes, and set too low it cuts the field in the sparse tail
     // of the blobs, where every individual particle still shows as a lump.
     //
-    // A blob of radius R integrates to πR²/4, and there are four particles to
-    // a cell, so full water comes to πR² in units of cells squared.
+    // A blob of radius R integrates to πR²/4 of its peak, and rest packing
+    // puts 1/spacing² particles in a cell, so full water sums to that many
+    // blobs. Halving the spacing quarters R² and quadruples the count, so the
+    // lone-particle peak the spray pass keys on stays put as well.
     const radiusInCells = pointSize / 2 / pixelsPerCell
+    const particlesPerCell = 1 / (fluid.spacing * fluid.spacing)
     this.splatMaterial.uniforms.uWeightScale!.value =
-      1 / (Math.PI * radiusInCells * radiusInCells)
+      4 / (particlesPerCell * Math.PI * radiusInCells * radiusInCells)
 
     this.updateDepth(fluid)
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { FlipFluid } from '@/scripts/fluid/flipFluid'
 
 /** A tank with solid walls and a solid floor, empty inside. */
-function makeTank(width: number, height: number, maxParticles = 8000) {
+function makeTank(width: number, height: number, maxParticles = 32000) {
   const fluid = new FlipFluid({ width, height, maxParticles })
   for (let i = 0; i < width; i++) {
     fluid.setSolid(i, 0, true)

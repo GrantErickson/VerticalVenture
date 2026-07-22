@@ -12,10 +12,11 @@ import { WORLD_WIDTH, WORLD_HEIGHT } from './useGame'
  */
 export const CELLS_PER_BLOCK = 2
 
-/** Particles per cell along each axis: four to a cell, the usual choice. */
-const PARTICLES_PER_AXIS = 2
+/** Particles per cell along each axis: sixteen to a cell, matching the
+ * solver's rest spacing of a quarter cell. */
+const PARTICLES_PER_AXIS = 4
 
-const MAX_PARTICLES = 24000
+const MAX_PARTICLES = 96000
 
 /**
  * The same world as the other two pages, with the block water replaced by a
