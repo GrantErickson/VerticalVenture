@@ -12,7 +12,10 @@
       ref="canvas"
       class="world"
       :style="{ maxWidth: WORLD_WIDTH * 20 + 'px' }"
-      @click="onClick"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
     />
 
     <v-row class="mt-2">
@@ -41,7 +44,8 @@ const {
   newKey,
   generateWorld,
   addWater,
-  toggleBlock,
+  isSolidBlock,
+  paintBlock,
   step,
 } = useFluidWorld()
 
@@ -98,14 +102,62 @@ onBeforeUnmount(() => {
   renderer = null
 })
 
-function onClick(event: MouseEvent) {
+// Click paints one block; click and drag paints everything the pointer
+// crosses. The block under the first press picks the mode for the whole
+// stroke — dig if it was rock, fill if it was open — so a stroke never
+// flickers blocks back and forth as it passes over a mix of both.
+let painting = false
+let paintSolid = false
+let lastBlockX = -1
+let lastBlockY = -1
+
+function blockAt(event: PointerEvent): { x: number; y: number } | null {
   const element = canvas.value
-  if (!element) return
+  if (!element) return null
   const rect = element.getBoundingClientRect()
   const x = Math.floor(((event.clientX - rect.left) / rect.width) * WORLD_WIDTH)
   // Canvas y runs down the screen, the world's y runs up it.
   const fromTop = ((event.clientY - rect.top) / rect.height) * WORLD_HEIGHT
-  toggleBlock(x, Math.floor(WORLD_HEIGHT - fromTop))
+  return { x, y: Math.floor(WORLD_HEIGHT - fromTop) }
+}
+
+function onPointerDown(event: PointerEvent) {
+  if (event.button !== 0) return
+  const cell = blockAt(event)
+  if (!cell) return
+  const solid = isSolidBlock(cell.x, cell.y)
+  if (solid === null) return
+  painting = true
+  paintSolid = !solid
+  canvas.value?.setPointerCapture(event.pointerId)
+  paintBlock(cell.x, cell.y, paintSolid)
+  lastBlockX = cell.x
+  lastBlockY = cell.y
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (!painting) return
+  const cell = blockAt(event)
+  if (!cell || (cell.x === lastBlockX && cell.y === lastBlockY)) return
+  // Walk the whole segment from the last painted block, so a fast drag
+  // paints a continuous stroke instead of a dotted line.
+  const steps = Math.max(
+    Math.abs(cell.x - lastBlockX),
+    Math.abs(cell.y - lastBlockY),
+  )
+  for (let i = 1; i <= steps; i++) {
+    paintBlock(
+      Math.round(lastBlockX + ((cell.x - lastBlockX) * i) / steps),
+      Math.round(lastBlockY + ((cell.y - lastBlockY) * i) / steps),
+      paintSolid,
+    )
+  }
+  lastBlockX = cell.x
+  lastBlockY = cell.y
+}
+
+function onPointerUp() {
+  painting = false
 }
 </script>
 
@@ -115,5 +167,7 @@ function onClick(event: MouseEvent) {
   width: 100%;
   aspect-ratio: v-bind('`${WORLD_WIDTH} / ${WORLD_HEIGHT}`');
   border-radius: 2px;
+  /* Dragging paints blocks; without this a touch drag scrolls the page. */
+  touch-action: none;
 }
 </style>

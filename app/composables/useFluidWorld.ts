@@ -145,16 +145,23 @@ export function useFluidWorld() {
     stats.particles = fluid.value.count
   }
 
-  function toggleBlock(blockX: number, blockY: number) {
+  /** Whether the block at these coordinates is rock. Null out of bounds. */
+  function isSolidBlock(blockX: number, blockY: number): boolean | null {
+    const block = game.value.world.getBlock(blockX, blockY)
+    return block ? block.blockType.nature === BlockNature.solid : null
+  }
+
+  /** Set one block to rock or empty; a no-op if it already is. */
+  function paintBlock(blockX: number, blockY: number, makeSolid: boolean) {
     const world = game.value.world
     const block = world.getBlock(blockX, blockY)
     if (!block) return
-    const solid = block.blockType.nature === BlockNature.solid
-    block.blockType = world.getBlockType(solid ? 'empty' : 'rock')
+    if ((block.blockType.nature === BlockNature.solid) === makeSolid) return
+    block.blockType = world.getBlockType(makeSolid ? 'rock' : 'empty')
     changes.value++
     syncSolids()
     // Filling a block in can bury water. Anything with nowhere to go is gone.
-    if (!solid) fluid.value.evictFromSolids()
+    if (makeSolid) fluid.value.evictFromSolids()
   }
 
   function step(dt: number) {
@@ -217,7 +224,8 @@ export function useFluidWorld() {
     newKey,
     generateWorld,
     addWater,
-    toggleBlock,
+    isSolidBlock,
+    paintBlock,
     step,
   }
 }
