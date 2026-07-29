@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { FLUID, type FlipFluid } from './flipFluid'
+import { CELLS_PER_BLOCK, CELL_BORDER } from './worldGrid'
 
 /**
  * Draws a FlipFluid as liquid rather than as the cloud of particles it is.
@@ -42,19 +43,23 @@ export class FluidRenderer {
   private depthData: Uint8Array
   private blockWidth: number
   private blockHeight: number
+  // The cells the canvas actually shows. The simulation grid is larger — it
+  // carries a solid border outside the world — so everything read out of it
+  // here is offset by CELL_BORDER and stops short of the far edge.
+  private cellWidth: number
+  private cellHeight: number
   private disposed = false
 
   constructor(
     canvas: HTMLCanvasElement,
     blockWidth: number,
     blockHeight: number,
-    cellsPerBlock: number,
     maxParticles: number,
   ) {
     this.blockWidth = blockWidth
     this.blockHeight = blockHeight
-    const cellWidth = blockWidth * cellsPerBlock
-    const cellHeight = blockHeight * cellsPerBlock
+    const cellWidth = (this.cellWidth = blockWidth * CELLS_PER_BLOCK)
+    const cellHeight = (this.cellHeight = blockHeight * CELLS_PER_BLOCK)
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2))
@@ -211,15 +216,18 @@ export class FluidRenderer {
   render(fluid: FlipFluid, elapsedSeconds: number, scrollCells: number = 0) {
     if (this.disposed) return
 
-    // Particle positions are in fluid cells; the shaders want clip space.
-    const toClipX = 2 / fluid.width
-    const toClipY = 2 / fluid.height
+    // Particle positions are in fluid cells; the shaders want clip space. Cell
+    // CELL_BORDER is the left/bottom edge of the drawn world, not cell 0.
+    const toClipX = 2 / this.cellWidth
+    const toClipY = 2 / this.cellHeight
     for (let i = 0; i < fluid.count; i++) {
-      this.positions[i * 3] = fluid.px[i]! * toClipX - 1
-      this.positions[i * 3 + 1] = (fluid.py[i]! + scrollCells) * toClipY - 1
+      this.positions[i * 3] = (fluid.px[i]! - CELL_BORDER) * toClipX - 1
+      this.positions[i * 3 + 1] =
+        (fluid.py[i]! - CELL_BORDER + scrollCells) * toClipY - 1
       this.speeds[i] = Math.hypot(fluid.pvx[i]!, fluid.pvy[i]!)
     }
-    this.compositeMaterial.uniforms.uScroll!.value = scrollCells / fluid.height
+    this.compositeMaterial.uniforms.uScroll!.value =
+      scrollCells / this.cellHeight
     const position = this.particles.geometry.getAttribute('position')
     const speed = this.particles.geometry.getAttribute('speed')
     position.needsUpdate = true
@@ -229,7 +237,7 @@ export class FluidRenderer {
     // A particle's blob spans about three times the rest spacing, so
     // neighbours overlap into a continuous sheet rather than reading as a row
     // of beads, and finer particles draw as proportionally finer detail.
-    const pixelsPerCell = this.density.width / fluid.width
+    const pixelsPerCell = this.density.width / this.cellWidth
     const pointSize = Math.max(pixelsPerCell * fluid.spacing * 6.4, 2)
     this.splatMaterial.uniforms.uPointSize!.value = pointSize
 
@@ -272,14 +280,15 @@ export class FluidRenderer {
    */
   private updateDepth(fluid: FlipFluid) {
     const data = this.depthData
-    for (let i = 0; i < fluid.width; i++) {
+    for (let i = 0; i < this.cellWidth; i++) {
       let above = 0
-      for (let j = fluid.height - 1; j >= 0; j--) {
-        const cell = fluid.cell[i * fluid.height + j]
+      const column = (i + CELL_BORDER) * fluid.height + CELL_BORDER
+      for (let j = this.cellHeight - 1; j >= 0; j--) {
+        const cell = fluid.cell[column + j]
         // Rock and air both start the count again, so water under a ledge is
         // shaded by its own depth and not by whatever is above the ledge.
         above = cell === FLUID ? above + 1 : 0
-        data[j * fluid.width + i] = Math.min(above * 8, 255)
+        data[j * this.cellWidth + i] = Math.min(above * 8, 255)
       }
     }
     this.depthTexture.needsUpdate = true

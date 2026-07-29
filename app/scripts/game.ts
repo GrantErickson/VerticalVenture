@@ -20,9 +20,13 @@ export class Game {
   frames: number = 0
   msPerTick: number = 0
   tickMsThisSecond: number = 0
-  scrollOffset: number = 1
-  private scrollIndex: ReturnType<typeof setTimeout> | null = null
+  /** How far into the next row the scroll has glided, in pixels. */
+  scrollOffset: number = 0
+  private scrolling: boolean = false
   private randomizer: RandomSeed = createRandomizer()
+
+  /** Matches the fluid page's pace: one row of descent every two seconds. */
+  static readonly secondsPerRow = 2
 
   constructor(
     public width: number,
@@ -49,25 +53,28 @@ export class Game {
   }
 
   get isScrolling() {
-    return this.scrollIndex !== null
+    return this.scrolling
   }
   set isScrolling(value: boolean) {
-    if (value) {
-      if (this.scrollIndex !== null) return
-      this.scrollOffset = 0
-      this.scrollIndex = setInterval(this.scroll.bind(this), 100)
-    } else {
-      if (this.scrollIndex === null) return
-      clearInterval(this.scrollIndex)
-      this.scrollIndex = null
-      this.scrollOffset = 0
-    }
+    if (value === this.scrolling) return
+    this.scrolling = value
+    this.scrollOffset = 0
   }
 
-  scroll() {
-    this.scrollOffset += 1
-    if (this.scrollOffset > this.blockSize) {
-      this.scrollOffset = 0
+  /**
+   * Glide the world up by this much real time, stepping a whole row in
+   * whenever the glide passes one.
+   *
+   * Driven by the page's animation frame rather than by a timer of its own.
+   * A whole pixel every 100ms is ten discrete jumps a second however smoothly
+   * the rest of the page is painting, and that is exactly what a scroll looks
+   * like when it is described as jerky.
+   */
+  advanceScroll(seconds: number) {
+    if (!this.scrolling) return
+    this.scrollOffset += (seconds / Game.secondsPerRow) * this.blockSize
+    while (this.scrollOffset >= this.blockSize) {
+      this.scrollOffset -= this.blockSize
       // remove the last row from the world
       this.world.removeRow(this.height - 1)
       // add a new row to the bottom of the world

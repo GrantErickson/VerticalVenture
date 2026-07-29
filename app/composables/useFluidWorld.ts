@@ -2,19 +2,18 @@ import { Game } from '~/scripts/game'
 import { BlockNature } from '~/scripts/blockType'
 import { Item } from '~/scripts/item'
 import { FlipFluid } from '~/scripts/fluid/flipFluid'
+import {
+  CELLS_PER_BLOCK,
+  CELL_BORDER,
+  cellsForBlocks,
+  fillBlock,
+  firstCellOf,
+  syncSolids,
+} from '~/scripts/fluid/worldGrid'
 
 /** World size in blocks for the fluid page. */
 export const WORLD_WIDTH = 50
 export const WORLD_HEIGHT = 25
-
-/**
- * How many fluid cells a block is worth along each axis. The simulation is a
- * grid of its own laid over the block world, and this is the only thing tying
- * the two together. Three would give finer flow but costs more than twice as
- * much per frame — most of the visible detail comes from where the particles
- * are, not from how fine the grid under them is.
- */
-export const CELLS_PER_BLOCK = 2
 
 /** Sized for the finest particle setting; coarser ones simply use less. */
 const MAX_PARTICLES = 96000
@@ -59,8 +58,8 @@ export function useFluidWorld() {
 
   function makeFluid() {
     return new FlipFluid({
-      width: WORLD_WIDTH * CELLS_PER_BLOCK,
-      height: WORLD_HEIGHT * CELLS_PER_BLOCK,
+      width: cellsForBlocks(WORLD_WIDTH),
+      height: cellsForBlocks(WORLD_HEIGHT),
       maxParticles: MAX_PARTICLES,
       spacing: 1 / settings.particlesPerAxis,
       flipRatio: settings.flipRatio,
@@ -71,51 +70,20 @@ export function useFluidWorld() {
   }
 
   /** Rock blocks become solid cells; the outside of the world is solid too. */
-  function syncSolids() {
-    const f = fluid.value
+  function syncTerrain() {
     const world = game.value.world
-    for (let x = 0; x < WORLD_WIDTH; x++) {
-      for (let y = 0; y < WORLD_HEIGHT; y++) {
-        const solid =
-          world.getBlock(x, y)?.blockType.nature === BlockNature.solid
-        for (let ci = 0; ci < CELLS_PER_BLOCK; ci++)
-          for (let cj = 0; cj < CELLS_PER_BLOCK; cj++)
-            f.setSolid(
-              x * CELLS_PER_BLOCK + ci,
-              y * CELLS_PER_BLOCK + cj,
-              solid,
-            )
-      }
-    }
-    // A one cell rim around the world. Half a block thick, so it is invisible
-    // against the terrain, and it means every cell holding water has a real
-    // cell on all four sides for the pressure solve to lean on.
-    for (let i = 0; i < f.width; i++) {
-      f.setSolid(i, 0, true)
-      f.setSolid(i, f.height - 1, true)
-    }
-    for (let j = 0; j < f.height; j++) {
-      f.setSolid(0, j, true)
-      f.setSolid(f.width - 1, j, true)
-    }
+    syncSolids(
+      fluid.value,
+      WORLD_WIDTH,
+      WORLD_HEIGHT,
+      (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
+    )
     terrainVersion.value++
   }
 
-  /** Fill one block's worth of cells with particles at the rest packing. */
-  function fillBlock(blockX: number, blockY: number) {
-    const f = fluid.value
-    const perAxis = settings.particlesPerAxis
-    const step = 1 / perAxis
-    for (let ci = 0; ci < CELLS_PER_BLOCK; ci++) {
-      for (let cj = 0; cj < CELLS_PER_BLOCK; cj++) {
-        const cellX = blockX * CELLS_PER_BLOCK + ci
-        const cellY = blockY * CELLS_PER_BLOCK + cj
-        if (f.isSolid(cellX, cellY)) continue
-        for (let px = 0; px < perAxis; px++)
-          for (let py = 0; py < perAxis; py++)
-            f.addParticle(cellX + (px + 0.5) * step, cellY + (py + 0.5) * step)
-      }
-    }
+  /** Cash one block of generated water in for particles. */
+  function pourBlock(blockX: number, blockY: number) {
+    fillBlock(fluid.value, blockX, blockY, settings.particlesPerAxis)
   }
 
   function generateWorld() {
@@ -123,7 +91,7 @@ export function useFluidWorld() {
     next.createRandomWorld(seed.value)
     game.value = next
     fluid.value = makeFluid()
-    syncSolids()
+    syncTerrain()
 
     // Cash the generated water in for particles, then take it out of the block
     // world — from here on the blocks are only terrain and the particles are
@@ -134,7 +102,7 @@ export function useFluidWorld() {
         const block = world.getBlock(x, y)!
         if (block.blockType.nature !== BlockNature.liquid) continue
         block.blockType = world.getBlockType('empty')
-        fillBlock(x, y)
+        pourBlock(x, y)
       }
     }
     changes.value = 0
@@ -146,8 +114,34 @@ export function useFluidWorld() {
   // How far into the next row the scroll has glided, 0..1 blocks. Drawn as a
   // smooth offset; the world itself only ever moves in whole-row steps.
   let scrollProgress = 0
-  /** Matches the block game's pace: a 20px block at 1px per 100ms. */
+  /** Matches the block game's pace: one row of descent every two seconds. */
   const SECONDS_PER_ROW = 2
+
+  /**
+   * Glide the world up by this much *real* time, stepping a whole row in
+   * whenever the glide passes one.
+   *
+   * Deliberately not driven by the solver's fixed step. The offset is the one
+   * number the eye follows across the whole frame, so it has to be a function
+   * of the wall clock: tied to how many frames have been drawn instead, every
+   * long frame — and the solver has plenty of them — lands the same distance of
+   * travel in a longer slice of time and reads as a stutter, and a display that
+   * is not 60Hz scrolls at the wrong speed entirely.
+   */
+  function advanceScroll(seconds: number) {
+    if (!scrolling.value) return
+    scrollProgress += seconds / SECONDS_PER_ROW
+    while (scrollProgress >= 1) {
+      scrollProgress -= 1
+      scrollRow()
+    }
+  }
+
+  // Stopping mid-glide would otherwise leave the world drawn part of a block
+  // off its own grid for as long as the scroll stayed off.
+  watch(scrolling, (on) => {
+    if (!on) scrollProgress = 0
+  })
 
   /** One row of descent: the world slides up and a fresh row rises in. */
   function scrollRow() {
@@ -164,8 +158,8 @@ export function useFluidWorld() {
     // predicate names what to KEEP.
     const f = fluid.value
     f.shiftParticles(CELLS_PER_BLOCK)
-    f.removeParticles((_x, y) => y < f.height - 1)
-    syncSolids()
+    f.removeParticles((_x, y) => y < f.height - CELL_BORDER)
+    syncTerrain()
 
     // The fresh row may bring water of its own; cash it in for particles
     // exactly as at generation time.
@@ -173,7 +167,7 @@ export function useFluidWorld() {
       const block = world.getBlock(x, 0)!
       if (block.blockType.nature !== BlockNature.liquid) continue
       block.blockType = world.getBlockType('empty')
-      fillBlock(x, 0)
+      pourBlock(x, 0)
     }
     stats.particles = f.count
     if (dark.value) relight()
@@ -241,7 +235,7 @@ export function useFluidWorld() {
 
   /** A row of water along the top of the world, as on the /dom page. */
   function addWater() {
-    for (let x = 0; x < WORLD_WIDTH; x++) fillBlock(x, WORLD_HEIGHT - 1)
+    for (let x = 0; x < WORLD_WIDTH; x++) pourBlock(x, WORLD_HEIGHT - 1)
     stats.particles = fluid.value.count
   }
 
@@ -261,7 +255,7 @@ export function useFluidWorld() {
     // Filling over a torch buries it; a light inside rock is no light at all.
     if (makeSolid && block.item) block.item = null
     changes.value++
-    syncSolids()
+    syncTerrain()
     if (dark.value) relight()
     // Filling a block in can bury water. Anything with nowhere to go is gone.
     if (makeSolid) fluid.value.evictFromSolids()
@@ -274,16 +268,8 @@ export function useFluidWorld() {
     if (drains.value) {
       // Let water out through the floor, which here means deleting anything
       // that reaches the lowest open row.
-      const floor = CELLS_PER_BLOCK + 0.5
+      const floor = firstCellOf(1) + 0.5
       f.removeParticles((_x, y) => y > floor)
-    }
-
-    if (scrolling.value) {
-      scrollProgress += dt / SECONDS_PER_ROW
-      if (scrollProgress >= 1) {
-        scrollProgress -= 1
-        scrollRow()
-      }
     }
 
     f.step(dt)
@@ -331,8 +317,9 @@ export function useFluidWorld() {
     drains,
     dark,
     scrolling,
-    /** The smooth part of the scroll, in blocks, for the renderer. */
-    scrollOffset: () => scrollProgress,
+    advanceScroll,
+    /** The smooth part of the scroll, in fluid cells, for the renderer. */
+    scrollCells: () => scrollProgress * CELLS_PER_BLOCK,
     changes,
     stats,
     terrainVersion,

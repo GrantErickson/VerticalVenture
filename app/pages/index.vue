@@ -45,7 +45,8 @@ const {
   drains,
   dark,
   scrolling,
-  scrollOffset,
+  advanceScroll,
+  scrollCells,
   changes,
   stats,
   terrainVersion,
@@ -64,6 +65,22 @@ let renderer: FluidRenderer | null = null
 let resizeObserver: ResizeObserver | null = null
 let rafHandle = 0
 let start = 0
+let previousFrame = 0
+let owed = 0
+
+// A fixed step: if the machine cannot keep up the water runs slow rather than
+// exploding, which is the right way round for a solver like this. Real elapsed
+// time is banked and spent a whole step at a time, at most one step a frame.
+//
+// The bank is what stops the water running at double time on a 120Hz screen.
+// The one-step ceiling is what keeps the old bargain: a machine that cannot
+// manage 60 steps a second simply gets slow water, and never a frame asked to
+// do two steps' work because the last one ran long.
+const FIXED_STEP = 1 / 60
+/** Never bank more than a step's worth of arrears; the rest is written off. */
+const MAX_OWED = 2 * FIXED_STEP
+/** A backgrounded tab comes back with minutes owed. None of it gets simulated. */
+const MAX_FRAME_SECONDS = 0.25
 
 function pushTerrain() {
   const world = game.value.world
@@ -92,7 +109,6 @@ onMounted(() => {
     element,
     WORLD_WIDTH,
     WORLD_HEIGHT,
-    CELLS_PER_BLOCK,
     fluid.value.maxParticles,
   )
 
@@ -105,19 +121,29 @@ onMounted(() => {
   pushTerrain()
   pushLight()
 
-  const loop = () => {
-    if (!start) start = performance.now()
-    // A fixed step: if the machine cannot keep up the water runs slow rather
-    // than exploding, which is the right way round for a solver like this.
-    step(1 / 60)
-    renderer?.render(
-      fluid.value,
-      (performance.now() - start) / 1000,
-      scrollOffset() * CELLS_PER_BLOCK,
-    )
+  const loop = (now: number) => {
+    if (!start) {
+      start = now
+      previousFrame = now
+    }
+    const elapsed = Math.min((now - previousFrame) / 1000, MAX_FRAME_SECONDS)
+    previousFrame = now
+
+    // The scroll rides the wall clock, so the world glides at the same speed
+    // however long the frame that draws it took. The solver behind it can fall
+    // behind without that showing up as a stutter.
+    advanceScroll(elapsed)
+
+    owed = Math.min(owed + elapsed, MAX_OWED)
+    if (owed >= FIXED_STEP) {
+      step(FIXED_STEP)
+      owed -= FIXED_STEP
+    }
+
+    renderer?.render(fluid.value, (now - start) / 1000, scrollCells())
     rafHandle = requestAnimationFrame(loop)
   }
-  loop()
+  rafHandle = requestAnimationFrame(loop)
 })
 
 onBeforeUnmount(() => {
