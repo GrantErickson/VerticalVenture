@@ -4,10 +4,14 @@ import {
   CELLS_PER_BLOCK,
   CELL_BORDER,
   cellsForBlocks,
+  drainLine,
   fillBlock,
   firstCellOf,
   syncSolids,
 } from '@/scripts/fluid/worldGrid'
+
+/** Every particle fineness the settings menu offers: n packs n² into a cell. */
+const PARTICLES_PER_AXIS = [1, 2, 3, 4]
 
 const BLOCKS_WIDE = 8
 const BLOCKS_TALL = 6
@@ -89,6 +93,35 @@ describe('world grid', () => {
     fillBlock(fluid, 0, 2, perAxis)
     fillBlock(fluid, BLOCKS_WIDE - 1, 2, perAxis)
     expect(fluid.count).toEqual(full * 4)
+  })
+
+  test('an open drain takes water at the floor, not a row above it', () => {
+    for (const perAxis of PARTICLES_PER_AXIS) {
+      const line = drainLine(1 / perAxis)
+      // Above the floor, or the last of the water never leaves...
+      expect(line).toBeGreaterThan(firstCellOf(0))
+      // ...and inside the bottom row of blocks, or that row is a dead band
+      // that water is deleted from before it is ever drawn there. This was
+      // the bug: the line sat at firstCellOf(1) + 0.5, a whole block row up,
+      // so opening the drain emptied the bottom row rather than draining it.
+      expect(line).toBeLessThan(firstCellOf(1))
+    }
+  })
+
+  test('a settled body of water reaches down past the drain line', () => {
+    // The line is only useful if water actually gets to it. Pour a column in
+    // and let it settle onto the floor: the bottom of it has to end up below
+    // the line, or an open drain would sit there doing nothing.
+    const perAxis = 4
+    const fluid = makeWorld()
+    for (let y = 0; y < 3; y++) fillBlock(fluid, 3, y, perAxis)
+
+    for (let i = 0; i < 300; i++) fluid.step(1 / 60)
+
+    let lowest = Infinity
+    for (let i = 0; i < fluid.count; i++)
+      lowest = Math.min(lowest, fluid.py[i]!)
+    expect(lowest).toBeLessThan(drainLine(1 / perAxis))
   })
 
   test('water poured into the bottom row stays in the bottom row', () => {

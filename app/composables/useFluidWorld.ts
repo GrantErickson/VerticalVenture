@@ -6,8 +6,8 @@ import {
   CELLS_PER_BLOCK,
   CELL_BORDER,
   cellsForBlocks,
+  drainLine,
   fillBlock,
-  firstCellOf,
   syncSolids,
 } from '~/scripts/fluid/worldGrid'
 
@@ -266,9 +266,8 @@ export function useFluidWorld() {
     const started = performance.now()
 
     if (drains.value) {
-      // Let water out through the floor, which here means deleting anything
-      // that reaches the lowest open row.
-      const floor = firstCellOf(1) + 0.5
+      // Water is gone once it reaches the bottom of the world, and not before.
+      const floor = drainLine(f.spacing)
       f.removeParticles((_x, y) => y > floor)
     }
 

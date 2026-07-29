@@ -40,6 +40,20 @@ export function firstCellOf(block: number): number {
 }
 
 /**
+ * The line an open drain takes water away at, in cells.
+ *
+ * The floor of the world plus one particle spacing, which is where the bottom
+ * layer of a body of water comes to rest. Tighter than that and the last of the
+ * water sits on the drain forever; looser, and it is drawn from water that has
+ * not reached the floor yet — which turns the bottom row into a dead band that
+ * water crosses without ever being drawn in it. It must stay inside the bottom
+ * row of blocks, whatever the particles are set to.
+ */
+export function drainLine(spacing: number): number {
+  return firstCellOf(0) + spacing
+}
+
+/**
  * Copy the rock into the simulation and lay the border back down around it.
  * Every block maps onto its own square of cells and nothing else, so the floor
  * the water rests on is exactly the floor that is drawn.
