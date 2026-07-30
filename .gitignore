@@ -91,3 +91,6 @@ sw.*
 
 # Vim swap files
 *.swp
+
+# Playwright MCP scratch output
+.playwright-mcp/
