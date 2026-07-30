@@ -98,40 +98,51 @@
         height: (game.height - (scrolling ? 1 : 0)) * game.blockSize + 'px',
       }"
     >
-      <template v-for="(row, rowIndex) in game.world.blocks" :key="rowIndex">
-        <div
-          v-for="block in row"
-          :id="block.key"
-          :key="block.key"
-          class="block"
-          :class="{
-            flowing: block.isFlowing,
-            static: !block.isFlowing,
-          }"
-          :style="{
-            top:
-              game.heightInPx - (block.y + 1) * 20 - game.scrollOffset + 'px',
-            left: block.x * 20 + 'px',
-          }"
-          @click="clickBlock(block, $event)"
-          @mouseover="hoverBlock(block)"
-          @mouseleave="leaveBlock(block)"
-        >
+      <!-- The glide lives on this one element rather than in every block's
+           `top`: 1250 absolutely positioned divs re-laid out every frame is
+           not something that stays smooth, and a transform on their container
+           is a single composited move. -->
+      <div
+        class="rows"
+        :style="{ transform: `translateY(${-game.scrollOffset}px)` }"
+      >
+        <template v-for="(row, rowIndex) in game.world.blocks" :key="rowIndex">
           <div
-            class="fill"
-            :style="{
-              background: block.blockType.background,
-              backgroundImage: `url(/${block.blockType.image})`,
-              height: block.isFlowing ? '100%' : block.percentFilled + '%',
-              width: block.isFlowing ? block.percentFilled + '%' : '100%',
+            v-for="block in row"
+            :id="block.key"
+            :key="block.key"
+            class="block"
+            :class="{
+              flowing: block.isFlowing,
+              static: !block.isFlowing,
             }"
-          />
-          <div v-if="block.item" class="item">
-            {{ block.item ? '🔦' : '' }}
+            :style="{
+              top: game.heightInPx - (block.y + 1) * 20 + 'px',
+              left: block.x * 20 + 'px',
+            }"
+            @click="clickBlock(block, $event)"
+            @mouseover="hoverBlock(block)"
+            @mouseleave="leaveBlock(block)"
+          >
+            <div
+              class="fill"
+              :style="{
+                background: block.blockType.background,
+                backgroundImage: `url(/${block.blockType.image})`,
+                height: block.isFlowing ? '100%' : block.percentFilled + '%',
+                width: block.isFlowing ? block.percentFilled + '%' : '100%',
+              }"
+            />
+            <div v-if="block.item" class="item">
+              {{ block.item ? '🔦' : '' }}
+            </div>
+            <div
+              class="overlay"
+              :style="{ opacity: 0.97 - block.brightness }"
+            />
           </div>
-          <div class="overlay" :style="{ opacity: 0.97 - block.brightness }" />
-        </div>
-      </template>
+        </template>
+      </div>
     </div>
 
     <div class="text-caption text-medium-emphasis mt-2">
@@ -218,10 +229,21 @@ watch(
   },
 )
 
+let previousFrame = 0
+/** A backgrounded tab comes back owing minutes; none of it gets scrolled. */
+const MAX_FRAME_SECONDS = 0.25
+
 onMounted(() => {
   loadFromUrl()
-  const loop = () => {
+  const loop = (now: number) => {
+    if (!previousFrame) previousFrame = now
+    const elapsed = Math.min((now - previousFrame) / 1000, MAX_FRAME_SECONDS)
+    previousFrame = now
+
     const g = game.value
+    // On the wall clock, so the world glides at the same speed whatever the
+    // refresh rate is and a long frame does not read as a stutter.
+    g.advanceScroll(elapsed)
     stats.torches = g.torches
     stats.waterBlocks = g.waterBlocks
     stats.blocksLit = g.blocksLit
@@ -230,7 +252,7 @@ onMounted(() => {
     frame.value++
     rafHandle = requestAnimationFrame(loop)
   }
-  loop()
+  rafHandle = requestAnimationFrame(loop)
 })
 
 // The game owns two intervals; without this they outlive the page.
@@ -335,6 +357,12 @@ function clickBlock(block: Block, event: MouseEvent) {
 }
 .world.scrolling {
   overflow: hidden;
+}
+
+.rows {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
 }
 
 .block.static .fill {

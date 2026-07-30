@@ -45,7 +45,10 @@ const {
   drains,
   dark,
   scrolling,
-  scrollOffset,
+  advanceScroll,
+  scrollCells,
+  scrollBlocks,
+  solidAt,
   changes,
   stats,
   terrainVersion,
@@ -64,27 +67,64 @@ let renderer: FluidRenderer | null = null
 let resizeObserver: ResizeObserver | null = null
 let rafHandle = 0
 let start = 0
+let previousFrame = 0
+let owed = 0
 
+// A fixed step: if the machine cannot keep up the water runs slow rather than
+// exploding, which is the right way round for a solver like this. Real elapsed
+// time is banked and spent a whole step at a time, at most one step a frame.
+//
+// The bank is what stops the water running at double time on a 120Hz screen.
+// The one-step ceiling is what keeps the old bargain: a machine that cannot
+// manage 60 steps a second simply gets slow water, and never a frame asked to
+// do two steps' work because the last one ran long.
+const FIXED_STEP = 1 / 60
+/** Never bank more than a step's worth of arrears; the rest is written off. */
+const MAX_OWED = 2 * FIXED_STEP
+/** A backgrounded tab comes back with minutes owed. None of it gets simulated. */
+const MAX_FRAME_SECONDS = 0.25
+
+// The renderer asks about the staging row below the world too, at y = -1: it
+// is drawn as a scroll glides it up into view. Torches never go there, and it
+// borrows the brightness of the row it is about to sit under.
 function pushTerrain() {
   const world = game.value.world
-  renderer?.setBlocks(
-    (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
-    (x, y) => world.getBlock(x, y)?.item != null,
+  renderer?.setBlocks(solidAt, (x, y) =>
+    y < 0 ? false : world.getBlock(x, y)?.item != null,
   )
 }
 
 function pushLight() {
   const world = game.value.world
   renderer?.setLight(
-    (x, y) => world.getBlock(x, y)?.brightness ?? 0,
+    (x, y) => world.getBlock(x, Math.max(y, 0))?.brightness ?? 0,
     dark.value,
   )
 }
 
 // The renderer keeps its own copies of the rock and the lighting, so they only
-// need rebuilding when something actually changes rather than every frame.
-watch(terrainVersion, pushTerrain)
-watch(lightVersion, pushLight)
+// need rebuilding when something actually changes rather than every frame —
+// but they are rebuilt here, in the frame, rather than from a watcher.
+//
+// A Vue watcher does not run until the current task finishes, and the whole
+// frame happens inside one: the row steps in, the water shifts up with it, the
+// scroll offset snaps back, the frame is drawn — and only then does the
+// watcher get round to the rock. That left one frame every two seconds drawn
+// with terrain a row out of step with the water standing on it, which is the
+// flash a scroll had at every row.
+let pushedTerrain = -1
+let pushedLight = -1
+
+function pushChanges() {
+  if (pushedTerrain !== terrainVersion.value) {
+    pushTerrain()
+    pushedTerrain = terrainVersion.value
+  }
+  if (pushedLight !== lightVersion.value) {
+    pushLight()
+    pushedLight = lightVersion.value
+  }
+}
 
 onMounted(() => {
   const element = canvas.value!
@@ -92,7 +132,6 @@ onMounted(() => {
     element,
     WORLD_WIDTH,
     WORLD_HEIGHT,
-    CELLS_PER_BLOCK,
     fluid.value.maxParticles,
   )
 
@@ -102,22 +141,32 @@ onMounted(() => {
   resizeObserver.observe(element)
 
   loadFromUrl()
-  pushTerrain()
-  pushLight()
 
-  const loop = () => {
-    if (!start) start = performance.now()
-    // A fixed step: if the machine cannot keep up the water runs slow rather
-    // than exploding, which is the right way round for a solver like this.
-    step(1 / 60)
-    renderer?.render(
-      fluid.value,
-      (performance.now() - start) / 1000,
-      scrollOffset() * CELLS_PER_BLOCK,
-    )
+  const loop = (now: number) => {
+    if (!start) {
+      start = now
+      previousFrame = now
+    }
+    const elapsed = Math.min((now - previousFrame) / 1000, MAX_FRAME_SECONDS)
+    previousFrame = now
+
+    // The scroll rides the wall clock, so the world glides at the same speed
+    // however long the frame that draws it took. The solver behind it can fall
+    // behind without that showing up as a stutter.
+    advanceScroll(elapsed)
+
+    owed = Math.min(owed + elapsed, MAX_OWED)
+    if (owed >= FIXED_STEP) {
+      step(FIXED_STEP)
+      owed -= FIXED_STEP
+    }
+
+    // Last thing before drawing, so what is drawn is all of one moment.
+    pushChanges()
+    renderer?.render(fluid.value, (now - start) / 1000, scrollCells())
     rafHandle = requestAnimationFrame(loop)
   }
-  loop()
+  rafHandle = requestAnimationFrame(loop)
 })
 
 onBeforeUnmount(() => {
@@ -142,9 +191,13 @@ function blockAt(event: PointerEvent): { x: number; y: number } | null {
   if (!element) return null
   const rect = element.getBoundingClientRect()
   const x = Math.floor(((event.clientX - rect.left) / rect.width) * WORLD_WIDTH)
-  // Canvas y runs down the screen, the world's y runs up it.
+  // Canvas y runs down the screen, the world's y runs up it — and mid-glide
+  // the world is drawn that fraction of a block higher than it sits, so the
+  // row under the pointer is that much lower than the screen makes it look.
+  // Without this a dig lands up to a whole row away from the cursor, and the
+  // part-arrived row along the bottom cannot be reached at all.
   const fromTop = ((event.clientY - rect.top) / rect.height) * WORLD_HEIGHT
-  return { x, y: Math.floor(WORLD_HEIGHT - fromTop) }
+  return { x, y: Math.floor(WORLD_HEIGHT - fromTop - scrollBlocks()) }
 }
 
 function onPointerDown(event: PointerEvent) {

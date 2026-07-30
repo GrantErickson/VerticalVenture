@@ -2,6 +2,129 @@ import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
 import { create as createRandomizer, type RandomSeed } from 'random-seed'
 
+/**
+ * Grow the row that belongs directly under the one described by `solidAbove`.
+ *
+ * `createRandomRow` scatters rock and water block by block, which is fine for
+ * the first pass of a whole world: openCaverns and connectCaverns then smooth
+ * that confetti into rooms and join them up. A row grown one at a time under a
+ * scrolling world never gets that treatment, and arrived as confetti — walls
+ * that stopped dead, caves that closed for no reason, single blocks hanging in
+ * the air.
+ *
+ * So each column takes its lead from the three blocks above it: the more rock
+ * there is over a column, the likelier that column is rock. Walls and caverns
+ * carry on downwards, and because it is only ever odds they wander as they go
+ * rather than copying the row above. A pass along the row afterwards flips any
+ * block that disagrees with both its neighbours, which closes one-block pits
+ * and knocks out one-block pillars — the same tidying openCaverns does.
+ *
+ * Water goes in by the run rather than by the block, so a cave arrives wet or
+ * dry rather than speckled.
+ */
+/** The share of a grown row that is rock, left to its own devices. */
+const TARGET_SOLID = 0.5
+/** ...and the most it is ever allowed to be, however the odds fall. */
+const MOST_SOLID = 0.6
+
+/**
+ * Flip any block that disagrees with both its neighbours — a lone block of
+ * either kind is noise, not shape. Sweeps until it settles, reading the row as
+ * it goes rather than a snapshot of it: flipping one speck can leave its
+ * neighbour looking like another, so a single pass over a frozen copy puts
+ * back roughly as many as it takes out.
+ */
+function smoothRow(solid: boolean[]) {
+  for (let pass = 0; pass < 4; pass++) {
+    let flipped = false
+    for (let x = 1; x < solid.length - 1; x++)
+      if (solid[x] !== solid[x - 1] && solid[x] !== solid[x + 1]) {
+        solid[x] = !solid[x]!
+        flipped = true
+      }
+    if (!flipped) break
+  }
+}
+
+export function growRow(
+  solidAbove: boolean[],
+  random: () => number,
+): { solid: boolean[]; water: boolean[] } {
+  const width = solidAbove.length
+
+  // How likely a column is to be rock, by how many of the three above it are.
+  //
+  // Symmetric on purpose — 0.06 against 0.94, 0.30 against 0.70 — because that
+  // is what puts the balance of rock and cavern at a standstill halfway. An
+  // asymmetric table has a standstill of its own wherever the odds happen to
+  // cross, and the first cut at this one sat at about three quarters rock: the
+  // caves silted up a row at a time and a long scroll ended in solid ground.
+  const chance = [0.06, 0.3, 0.7, 0.94]
+  // ...and a nudge back towards the target from wherever the row above has got
+  // to, so a run of bad luck is leant against rather than compounded.
+  const density = solidAbove.filter(Boolean).length / width
+  const bias = (TARGET_SOLID - density) * 0.6
+
+  const aboveCount: number[] = []
+  const grown: boolean[] = []
+  for (let x = 0; x < width; x++) {
+    let above = 0
+    for (let dx = -1; dx <= 1; dx++) {
+      // Off the ends, read the edge column again rather than counting the void
+      // as rock, or every world would grow walls down its sides.
+      const at = Math.min(Math.max(x + dx, 0), width - 1)
+      if (solidAbove[at]) above++
+    }
+    aboveCount[x] = above
+    grown[x] = random() < Math.min(Math.max(chance[above]! + bias, 0.02), 0.98)
+  }
+
+  const solid = grown.slice()
+  smoothRow(solid)
+
+  // Odds and a smoothing pass are still only odds and a smoothing pass, and a
+  // world that scrolls long enough will find the run of them that closes it
+  // over for good. So there is a floor under how open a row may be. A row that
+  // comes out more rock than this is opened back up, starting at the columns
+  // with the least rock above them — which is where a cavern was already
+  // heading. Holes punched at random would read as damage; these read as the
+  // cave carrying on down.
+  //
+  // Cut past the cap rather than to it, because the smoothing that follows
+  // will close a little of it back up, and then smooth again so the openings
+  // are caverns rather than a scattering of pinholes.
+  const allowed = Math.floor(width * MOST_SOLID)
+  let rock = solid.filter(Boolean).length
+  if (rock > allowed) {
+    const target = allowed - Math.ceil(width * 0.06)
+    const key: number[] = []
+    for (let x = 0; x < width; x++) key[x] = aboveCount[x]! + random()
+    const candidates: number[] = []
+    for (let x = 0; x < width; x++) if (solid[x]) candidates.push(x)
+    candidates.sort((a, b) => key[a]! - key[b]!)
+    for (const x of candidates) {
+      if (rock <= target) break
+      solid[x] = false
+      rock--
+    }
+    smoothRow(solid)
+  }
+
+  const water: boolean[] = new Array(width).fill(false)
+  for (let x = 0; x < width;) {
+    if (solid[x]) {
+      x++
+      continue
+    }
+    let end = x
+    while (end < width && !solid[end]) end++
+    if (random() < 0.35) for (let i = x; i < end; i++) water[i] = true
+    x = end
+  }
+
+  return { solid, water }
+}
+
 export class Game {
   world: World
   private clockedItems: Clockable[] = []
@@ -20,9 +143,13 @@ export class Game {
   frames: number = 0
   msPerTick: number = 0
   tickMsThisSecond: number = 0
-  scrollOffset: number = 1
-  private scrollIndex: ReturnType<typeof setTimeout> | null = null
+  /** How far into the next row the scroll has glided, in pixels. */
+  scrollOffset: number = 0
+  private scrolling: boolean = false
   private randomizer: RandomSeed = createRandomizer()
+
+  /** Matches the fluid page's pace: one row of descent every two seconds. */
+  static readonly secondsPerRow = 2
 
   constructor(
     public width: number,
@@ -49,30 +176,34 @@ export class Game {
   }
 
   get isScrolling() {
-    return this.scrollIndex !== null
+    return this.scrolling
   }
   set isScrolling(value: boolean) {
-    if (value) {
-      if (this.scrollIndex !== null) return
-      this.scrollOffset = 0
-      this.scrollIndex = setInterval(this.scroll.bind(this), 100)
-    } else {
-      if (this.scrollIndex === null) return
-      clearInterval(this.scrollIndex)
-      this.scrollIndex = null
-      this.scrollOffset = 0
-    }
+    if (value === this.scrolling) return
+    this.scrolling = value
+    this.scrollOffset = 0
   }
 
-  scroll() {
-    this.scrollOffset += 1
-    if (this.scrollOffset > this.blockSize) {
-      this.scrollOffset = 0
+  /**
+   * Glide the world up by this much real time, stepping a whole row in
+   * whenever the glide passes one.
+   *
+   * Driven by the page's animation frame rather than by a timer of its own.
+   * A whole pixel every 100ms is ten discrete jumps a second however smoothly
+   * the rest of the page is painting, and that is exactly what a scroll looks
+   * like when it is described as jerky.
+   */
+  advanceScroll(seconds: number) {
+    if (!this.scrolling) return
+    this.scrollOffset += (seconds / Game.secondsPerRow) * this.blockSize
+    while (this.scrollOffset >= this.blockSize) {
+      this.scrollOffset -= this.blockSize
       // remove the last row from the world
       this.world.removeRow(this.height - 1)
-      // add a new row to the bottom of the world
+      // add a new row to the bottom of the world, carrying on the shape of the
+      // one it arrives under rather than starting again from noise
       this.world.insertRow(0)
-      this.createRandomRow(0)
+      this.growRandomRow(0)
     }
   }
 
@@ -257,6 +388,30 @@ export class Game {
       for (let y = from.y; y !== to.y; y += Math.sign(to.y - from.y))
         carve(to.x, y)
       main.push(...region)
+    }
+  }
+
+  /**
+   * The row that belongs under row `aboveY`, grown but not placed. The fluid
+   * page keeps its next row out of the world entirely until it scrolls in.
+   */
+  rowBelow(aboveY: number): { solid: boolean[]; water: boolean[] } {
+    const solidAbove: boolean[] = []
+    for (let x = 0; x < this.world.width; x++)
+      solidAbove.push(
+        this.world.getBlock(x, aboveY)?.blockType.nature === BlockNature.solid,
+      )
+    return growRow(solidAbove, () => this.randomizer.random())
+  }
+
+  /** Grow row `y` from the row above it and put it in the world. */
+  growRandomRow(y: number) {
+    const { solid, water } = this.rowBelow(y + 1)
+    for (let x = 0; x < this.world.width; x++) {
+      const block = this.world.getBlock(x, y)!
+      block.blockType = this.world.getBlockType(
+        solid[x] ? 'rock' : water[x] ? 'water' : 'empty',
+      )
     }
   }
 
