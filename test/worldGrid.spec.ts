@@ -3,9 +3,11 @@ import { FlipFluid } from '@/scripts/fluid/flipFluid'
 import {
   CELLS_PER_BLOCK,
   CELL_BORDER,
-  cellsForBlocks,
+  HEADROOM_BLOCKS,
   fillBlock,
   firstCellOf,
+  gridHeightFor,
+  gridWidthFor,
   syncSolids,
 } from '@/scripts/fluid/worldGrid'
 
@@ -15,28 +17,77 @@ const BLOCKS_TALL = 6
 /** A world of open blocks unless `rock` says otherwise. */
 function makeWorld(rock: (x: number, y: number) => boolean = () => false) {
   const fluid = new FlipFluid({
-    width: cellsForBlocks(BLOCKS_WIDE),
-    height: cellsForBlocks(BLOCKS_TALL),
+    width: gridWidthFor(BLOCKS_WIDE),
+    height: gridHeightFor(BLOCKS_TALL),
     maxParticles: 20000,
   })
   syncSolids(fluid, BLOCKS_WIDE, BLOCKS_TALL, rock)
   return fluid
 }
 
+/** The highest any particle has got to, in cells. */
+function highest(fluid: FlipFluid) {
+  let top = 0
+  for (let i = 0; i < fluid.count; i++) top = Math.max(top, fluid.py[i]!)
+  return top
+}
+
 describe('world grid', () => {
   test('every block gets its own square of cells and nothing else', () => {
     const fluid = makeWorld()
     expect(fluid.width).toEqual(BLOCKS_WIDE * CELLS_PER_BLOCK + 2 * CELL_BORDER)
-    expect(fluid.height).toEqual(
-      BLOCKS_TALL * CELLS_PER_BLOCK + 2 * CELL_BORDER,
-    )
 
     // Blocks tile the interior exactly: the first cell of one block is the one
     // after the last cell of the block below it.
     expect(firstCellOf(0)).toEqual(CELL_BORDER)
-    expect(firstCellOf(BLOCKS_TALL - 1) + CELLS_PER_BLOCK).toEqual(
-      fluid.height - CELL_BORDER,
+    // Above the top block is sky, and above that the border.
+    expect(fluid.height).toEqual(
+      firstCellOf(BLOCKS_TALL) +
+        HEADROOM_BLOCKS * CELLS_PER_BLOCK +
+        CELL_BORDER,
     )
+  })
+
+  test('the sky above the world is open air', () => {
+    // Rock everywhere it is allowed to put rock; the sky is not one of those
+    // places, whatever the blocks below it say.
+    const fluid = makeWorld(() => true)
+    for (let i = CELL_BORDER; i < fluid.width - CELL_BORDER; i++) {
+      for (
+        let j = firstCellOf(BLOCKS_TALL);
+        j < fluid.height - CELL_BORDER;
+        j++
+      )
+        expect(fluid.isSolid(i, j)).toBe(false)
+      // The lid is still up there, one block higher than it used to be.
+      expect(fluid.isSolid(i, fluid.height - 1)).toBe(true)
+    }
+    // Open upwards, not sideways.
+    for (let j = 0; j < fluid.height; j++) {
+      expect(fluid.isSolid(0, j)).toBe(true)
+      expect(fluid.isSolid(fluid.width - 1, j)).toBe(true)
+    }
+  })
+
+  test('water poured in along the top falls instead of hanging from the sky', () => {
+    // The bug this guards: sat straight against a solid border, the top row of
+    // water is under a lid. Its top face is pinned shut so the pressure solve
+    // has no free surface there, and a solid neighbour counts as covered, so
+    // the drift correction reads the draining cell as submerged and pulls the
+    // water back up into it. The row hung there and would not fall.
+    const fluid = makeWorld()
+    for (let x = 0; x < BLOCKS_WIDE; x++)
+      fillBlock(fluid, x, BLOCKS_TALL - 1, 4)
+    const poured = fluid.count
+    expect(highest(fluid)).toBeGreaterThan(firstCellOf(BLOCKS_TALL - 1))
+
+    // One second is many times over what it takes to fall this far.
+    for (let i = 0; i < 60; i++) fluid.step(1 / 60)
+
+    expect(fluid.count).toEqual(poured)
+    // All of it poured in as one block row's worth per column, so once it has
+    // landed it stands about a block deep and nothing is left up top.
+    expect(highest(fluid)).toBeLessThan(firstCellOf(2))
   })
 
   test('the solid border sits outside the blocks, not inside them', () => {
@@ -99,7 +150,7 @@ describe('world grid', () => {
     for (let i = CELL_BORDER; i < fluid.width - CELL_BORDER; i++)
       expect(fluid.isSolid(i, 0)).toBe(false)
     // ...and the rest of the frame is untouched, corners included, so no cell
-    // the pressure solve can reach ever sits on the edge of the grid.
+    // the pressure solve can reach sits on the edge of the grid.
     expect(fluid.isSolid(0, 0)).toBe(true)
     expect(fluid.isSolid(fluid.width - 1, 0)).toBe(true)
     for (let j = 0; j < fluid.height; j++) {

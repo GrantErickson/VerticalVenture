@@ -4,9 +4,10 @@ import { Item } from '~/scripts/item'
 import { FlipFluid } from '~/scripts/fluid/flipFluid'
 import {
   CELLS_PER_BLOCK,
-  CELL_BORDER,
-  cellsForBlocks,
   fillBlock,
+  firstCellOf,
+  gridHeightFor,
+  gridWidthFor,
   syncSolids,
 } from '~/scripts/fluid/worldGrid'
 
@@ -57,8 +58,8 @@ export function useFluidWorld() {
 
   function makeFluid() {
     return new FlipFluid({
-      width: cellsForBlocks(WORLD_WIDTH),
-      height: cellsForBlocks(WORLD_HEIGHT),
+      width: gridWidthFor(WORLD_WIDTH),
+      height: gridHeightFor(WORLD_HEIGHT),
       maxParticles: MAX_PARTICLES,
       spacing: 1 / settings.particlesPerAxis,
       flipRatio: settings.flipRatio,
@@ -165,9 +166,12 @@ export function useFluidWorld() {
     // The terrain just moved up a block, so the water goes with it, and
     // whatever gets pushed past the top has scrolled off the world. The
     // predicate names what to KEEP.
+    // Past the top of the blocks is off the world — the sky above them is
+    // headroom for a splash to come back down from, not somewhere to ride out
+    // a scroll.
     const f = fluid.value
     f.shiftParticles(CELLS_PER_BLOCK)
-    f.removeParticles((_x, y) => y < f.height - CELL_BORDER)
+    f.removeParticles((_x, y) => y < firstCellOf(WORLD_HEIGHT))
     syncTerrain()
 
     // The fresh row may bring water of its own; cash it in for particles

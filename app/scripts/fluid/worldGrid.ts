@@ -29,12 +29,38 @@ export const CELLS_PER_BLOCK = 2
  */
 export const CELL_BORDER = 1
 
-/** Cells needed along an axis to hold a world this many blocks across. */
-export function cellsForBlocks(blocks: number): number {
-  return blocks * CELLS_PER_BLOCK + 2 * CELL_BORDER
+/**
+ * Open air above the world, in blocks. Simulated, never drawn.
+ *
+ * Water needs somewhere to keep its surface. A cell of water with solid
+ * directly above it is under a lid, and the solver treats it as one twice over:
+ * the face against it is pinned shut, so the pressure solve has no free surface
+ * to work against, and a solid neighbour counts as covered, so as the cell
+ * drains the drift correction reads it as submerged and pulls water back up
+ * into it. Both are right for water under a rock ceiling, which really is held
+ * up like water in a straw with a finger over the end.
+ *
+ * Neither is right for the top of the world, which is meant to be open sky. Sat
+ * straight against the border, a row of water poured in along the top would
+ * hang there and refuse to fall. One block of air is all it takes: the surface
+ * has somewhere to be, and the water pours in the way it should.
+ */
+export const HEADROOM_BLOCKS = 1
+
+/** Cells across the simulation for a world this many blocks wide. */
+export function gridWidthFor(blockWidth: number): number {
+  return blockWidth * CELLS_PER_BLOCK + 2 * CELL_BORDER
 }
 
-/** The lowest — or leftmost — cell that a block owns. */
+/** Cells up the simulation for a world this many blocks tall, sky included. */
+export function gridHeightFor(blockHeight: number): number {
+  return (blockHeight + HEADROOM_BLOCKS) * CELLS_PER_BLOCK + 2 * CELL_BORDER
+}
+
+/**
+ * The lowest — or leftmost — cell that a block owns. Passed the height of the
+ * world it gives the cell just above it, where the sky starts.
+ */
 export function firstCellOf(block: number): number {
   return block * CELLS_PER_BLOCK + CELL_BORDER
 }
@@ -83,6 +109,12 @@ export function syncSolids(
       fluid.setSolid(fluid.width - 1 - b, j, true)
     }
   }
+  // The sky is always open, whatever the blocks below it are doing. The side
+  // columns are left alone, so it is open upwards and not sideways.
+  for (let i = CELL_BORDER; i < fluid.width - CELL_BORDER; i++)
+    for (let j = firstCellOf(blockHeight); j < fluid.height - CELL_BORDER; j++)
+      fluid.setSolid(i, j, false)
+
   // The floor comes back out from under the world, but only from under the
   // world: the side columns stay solid all the way down, so the grid keeps a
   // frame on three sides and the only way out is straight down.

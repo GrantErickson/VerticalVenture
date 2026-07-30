@@ -44,8 +44,9 @@ export class FluidRenderer {
   private blockWidth: number
   private blockHeight: number
   // The cells the canvas actually shows. The simulation grid is larger — it
-  // carries a solid border outside the world — so everything read out of it
-  // here is offset by CELL_BORDER and stops short of the far edge.
+  // carries a solid border outside the world, and a block of open sky above it
+  // for water to have a surface against — so everything read out of it here
+  // starts CELL_BORDER in and stops at the top of the blocks.
   private cellWidth: number
   private cellHeight: number
   private disposed = false
