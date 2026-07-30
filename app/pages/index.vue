@@ -47,6 +47,7 @@ const {
   scrolling,
   advanceScroll,
   scrollCells,
+  solidAt,
   changes,
   stats,
   terrainVersion,
@@ -82,18 +83,20 @@ const MAX_OWED = 2 * FIXED_STEP
 /** A backgrounded tab comes back with minutes owed. None of it gets simulated. */
 const MAX_FRAME_SECONDS = 0.25
 
+// The renderer asks about the staging row below the world too, at y = -1: it
+// is drawn as a scroll glides it up into view. Torches never go there, and it
+// borrows the brightness of the row it is about to sit under.
 function pushTerrain() {
   const world = game.value.world
-  renderer?.setBlocks(
-    (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
-    (x, y) => world.getBlock(x, y)?.item != null,
+  renderer?.setBlocks(solidAt, (x, y) =>
+    y < 0 ? false : world.getBlock(x, y)?.item != null,
   )
 }
 
 function pushLight() {
   const world = game.value.world
   renderer?.setLight(
-    (x, y) => world.getBlock(x, y)?.brightness ?? 0,
+    (x, y) => world.getBlock(x, Math.max(y, 0))?.brightness ?? 0,
     dark.value,
   )
 }

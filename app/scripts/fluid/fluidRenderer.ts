@@ -1,6 +1,11 @@
 import * as THREE from 'three'
 import { FLUID, type FlipFluid } from './flipFluid'
-import { CELLS_PER_BLOCK, CELL_BORDER } from './worldGrid'
+import {
+  CELLS_PER_BLOCK,
+  STAGING_BLOCKS,
+  firstCellOfColumn,
+  firstCellOfRow,
+} from './worldGrid'
 
 /**
  * Draws a FlipFluid as liquid rather than as the cloud of particles it is.
@@ -43,12 +48,17 @@ export class FluidRenderer {
   private depthData: Uint8Array
   private blockWidth: number
   private blockHeight: number
-  // The cells the canvas actually shows. The simulation grid is larger — it
-  // carries a solid border outside the world, and a block of open sky above it
-  // for water to have a surface against — so everything read out of it here
-  // starts CELL_BORDER in and stops at the top of the blocks.
+  // The cells the canvas shows at rest, and the cell its bottom-left corner
+  // sits on. The simulation grid is bigger on every side: a solid border, open
+  // sky above for water to have a surface against, and the staging rows below.
   private cellWidth: number
   private cellHeight: number
+  private originX: number
+  private originY: number
+  // Block rows held in the world textures. The staging rows are in there too,
+  // at the bottom, because a scroll glides them up into view and they have to
+  // be drawn while it does.
+  private blockRows: number
   private disposed = false
 
   constructor(
@@ -59,8 +69,14 @@ export class FluidRenderer {
   ) {
     this.blockWidth = blockWidth
     this.blockHeight = blockHeight
+    this.originX = firstCellOfColumn(0)
+    this.originY = firstCellOfRow(0)
+    const blockRows = (this.blockRows = blockHeight + STAGING_BLOCKS)
     const cellWidth = (this.cellWidth = blockWidth * CELLS_PER_BLOCK)
     const cellHeight = (this.cellHeight = blockHeight * CELLS_PER_BLOCK)
+    // The depth field covers the staging rows as well, so water gliding in is
+    // shaded like the water it is rather than reading as a flat sheet.
+    const depthHeight = blockRows * CELLS_PER_BLOCK
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2))
@@ -113,11 +129,11 @@ export class FluidRenderer {
     this.particles.frustumCulled = false
     this.particleScene.add(this.particles)
 
-    this.rockData = new Uint8Array(blockWidth * blockHeight * 4)
+    this.rockData = new Uint8Array(blockWidth * blockRows * 4)
     this.rockTexture = new THREE.DataTexture(
       this.rockData,
       blockWidth,
-      blockHeight,
+      blockRows,
     )
     this.rockTexture.minFilter = THREE.NearestFilter
     this.rockTexture.magFilter = THREE.NearestFilter
@@ -125,22 +141,22 @@ export class FluidRenderer {
 
     // Block brightness for dark mode. Linear filtering, so torchlight falls
     // off in a smooth pool instead of block-shaped steps.
-    this.lightData = new Uint8Array(blockWidth * blockHeight)
+    this.lightData = new Uint8Array(blockWidth * blockRows)
     this.lightTexture = new THREE.DataTexture(
       this.lightData,
       blockWidth,
-      blockHeight,
+      blockRows,
       THREE.RedFormat,
     )
     this.lightTexture.minFilter = THREE.LinearFilter
     this.lightTexture.magFilter = THREE.LinearFilter
     this.lightTexture.needsUpdate = true
 
-    this.depthData = new Uint8Array(cellWidth * cellHeight)
+    this.depthData = new Uint8Array(cellWidth * depthHeight)
     this.depthTexture = new THREE.DataTexture(
       this.depthData,
       cellWidth,
-      cellHeight,
+      depthHeight,
       THREE.RedFormat,
     )
     // Linear, unlike the block textures: this one is a smooth quantity and the
@@ -164,6 +180,10 @@ export class FluidRenderer {
         uScroll: { value: 0 },
         uRock: { value: rock },
         uSize: { value: new THREE.Vector2(blockWidth, blockHeight) },
+        // The world textures run from the bottom of the staging rows, so a
+        // fragment's row is its world row plus that offset.
+        uRows: { value: blockRows },
+        uRowOffset: { value: STAGING_BLOCKS },
         uTexel: { value: new THREE.Vector2(1 / 512, 1 / 256) },
         uTime: { value: 0 },
       },
@@ -181,15 +201,16 @@ export class FluidRenderer {
 
   /**
    * Rebuild the rock and torch layer. Only needed when the terrain or the
-   * torches actually change.
+   * torches actually change. Asked about the staging rows too, at negative y —
+   * they are below the world but a scroll brings them into view.
    */
   setBlocks(
     isSolid: (x: number, y: number) => boolean,
     hasTorch: (x: number, y: number) => boolean = () => false,
   ) {
     for (let x = 0; x < this.blockWidth; x++) {
-      for (let y = 0; y < this.blockHeight; y++) {
-        const i = (y * this.blockWidth + x) * 4
+      for (let y = -STAGING_BLOCKS; y < this.blockHeight; y++) {
+        const i = ((y + STAGING_BLOCKS) * this.blockWidth + x) * 4
         this.rockData[i] = isSolid(x, y) ? 255 : 0
         this.rockData[i + 2] = hasTorch(x, y) ? 255 : 0
       }
@@ -200,9 +221,11 @@ export class FluidRenderer {
   /** How lit each block is, and whether that matters at all right now. */
   setLight(brightness: (x: number, y: number) => number, dark: boolean) {
     for (let x = 0; x < this.blockWidth; x++) {
-      for (let y = 0; y < this.blockHeight; y++) {
+      for (let y = -STAGING_BLOCKS; y < this.blockHeight; y++) {
         const lit = Math.min(Math.max(brightness(x, y), 0), 1)
-        this.lightData[y * this.blockWidth + x] = Math.round(lit * 255)
+        this.lightData[(y + STAGING_BLOCKS) * this.blockWidth + x] = Math.round(
+          lit * 255,
+        )
       }
     }
     this.lightTexture.needsUpdate = true
@@ -217,14 +240,15 @@ export class FluidRenderer {
   render(fluid: FlipFluid, elapsedSeconds: number, scrollCells: number = 0) {
     if (this.disposed) return
 
-    // Particle positions are in fluid cells; the shaders want clip space. Cell
-    // CELL_BORDER is the left/bottom edge of the drawn world, not cell 0.
+    // Particle positions are in fluid cells; the shaders want clip space. The
+    // world's bottom-left corner is the origin, not cell 0 — below and around
+    // it are the staging rows and the border.
     const toClipX = 2 / this.cellWidth
     const toClipY = 2 / this.cellHeight
     for (let i = 0; i < fluid.count; i++) {
-      this.positions[i * 3] = (fluid.px[i]! - CELL_BORDER) * toClipX - 1
+      this.positions[i * 3] = (fluid.px[i]! - this.originX) * toClipX - 1
       this.positions[i * 3 + 1] =
-        (fluid.py[i]! - CELL_BORDER + scrollCells) * toClipY - 1
+        (fluid.py[i]! - this.originY + scrollCells) * toClipY - 1
       this.speeds[i] = Math.hypot(fluid.pvx[i]!, fluid.pvy[i]!)
     }
     this.compositeMaterial.uniforms.uScroll!.value =
@@ -281,10 +305,12 @@ export class FluidRenderer {
    */
   private updateDepth(fluid: FlipFluid) {
     const data = this.depthData
+    const rows = this.blockRows * CELLS_PER_BLOCK
+    const bottom = firstCellOfRow(-STAGING_BLOCKS)
     for (let i = 0; i < this.cellWidth; i++) {
       let above = 0
-      const column = (i + CELL_BORDER) * fluid.height + CELL_BORDER
-      for (let j = this.cellHeight - 1; j >= 0; j--) {
+      const column = (i + this.originX) * fluid.height + bottom
+      for (let j = rows - 1; j >= 0; j--) {
         const cell = fluid.cell[column + j]
         // Rock and air both start the count again, so water under a ledge is
         // shaded by its own depth and not by whatever is above the ledge.
@@ -354,6 +380,8 @@ uniform float uDark;
 uniform float uScroll;
 uniform sampler2D uRock;
 uniform vec2 uSize;
+uniform float uRows;
+uniform float uRowOffset;
 uniform vec2 uTexel;
 uniform float uTime;
 
@@ -375,9 +403,15 @@ void main() {
   // while the scroll glides between rows, so they slide in step with the
   // particles, which are offset on their way in. The density field is already
   // in screen space and keeps vUv.
+  //
+  // They all hold the staging rows below the world as well, so a scroll has
+  // real terrain to bring up into the strip that opens along the bottom
+  // instead of the bottom row smeared downwards. Hence the row offset: a
+  // fragment's row in the textures is its row in the world plus that.
   vec2 wUv = vec2(vUv.x, vUv.y - uScroll);
-  vec2 blockPos = wUv * uSize;
-  vec4 blocks = texture2D(uBlocks, (floor(blockPos) + 0.5) / uSize);
+  vec2 blockPos = vec2(wUv.x * uSize.x, wUv.y * uSize.y + uRowOffset);
+  vec2 tUv = vec2(wUv.x, blockPos.y / uRows);
+  vec4 blocks = texture2D(uBlocks, (floor(blockPos) + 0.5) / vec2(uSize.x, uRows));
   float solid = blocks.r;
 
   vec3 cave = vec3(0.045, 0.040, 0.055);
@@ -400,7 +434,7 @@ void main() {
   // How much water stands above this point, worked out on the grid rather than
   // from the field above, which is flat inside a body and so cannot tell a
   // puddle from the bottom of a lake.
-  float depth = clamp(texture2D(uDepth, wUv).r * 255.0 / 8.0 / 9.0, 0.0, 1.0);
+  float depth = clamp(texture2D(uDepth, tUv).r * 255.0 / 8.0 / 9.0, 0.0, 1.0);
 
   vec3 shallow = vec3(0.36, 0.72, 0.78);
   vec3 deep = vec3(0.02, 0.13, 0.34);
@@ -446,7 +480,7 @@ void main() {
 
   // Night is a multiply down to the torch-lit brightness, with a whisper of
   // ambient left so the caves still read as shapes rather than as nothing.
-  float light = texture2D(uLight, wUv).r;
+  float light = texture2D(uLight, tUv).r;
   col = mix(col, col * (0.05 + 0.95 * light), uDark);
 
   // The torch itself is a small warm flame, drawn over the darkness so it can

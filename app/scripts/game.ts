@@ -2,6 +2,75 @@ import { World } from './world'
 import { BlockType, BlockNature } from './blockType'
 import { create as createRandomizer, type RandomSeed } from 'random-seed'
 
+/**
+ * Grow the row that belongs directly under the one described by `solidAbove`.
+ *
+ * `createRandomRow` scatters rock and water block by block, which is fine for
+ * the first pass of a whole world: openCaverns and connectCaverns then smooth
+ * that confetti into rooms and join them up. A row grown one at a time under a
+ * scrolling world never gets that treatment, and arrived as confetti — walls
+ * that stopped dead, caves that closed for no reason, single blocks hanging in
+ * the air.
+ *
+ * So each column takes its lead from the three blocks above it: the more rock
+ * there is over a column, the likelier that column is rock. Walls and caverns
+ * carry on downwards, and because it is only ever odds they wander as they go
+ * rather than copying the row above. A pass along the row afterwards flips any
+ * block that disagrees with both its neighbours, which closes one-block pits
+ * and knocks out one-block pillars — the same tidying openCaverns does.
+ *
+ * Water goes in by the run rather than by the block, so a cave arrives wet or
+ * dry rather than speckled.
+ */
+export function growRow(
+  solidAbove: boolean[],
+  random: () => number,
+): { solid: boolean[]; water: boolean[] } {
+  const width = solidAbove.length
+  // How likely a column is to be rock, by how many of the three above it are.
+  const chance = [0.1, 0.32, 0.72, 0.94]
+
+  const grown: boolean[] = []
+  for (let x = 0; x < width; x++) {
+    let above = 0
+    for (let dx = -1; dx <= 1; dx++) {
+      // Off the ends, read the edge column again rather than counting the void
+      // as rock, or every world would grow walls down its sides.
+      const at = Math.min(Math.max(x + dx, 0), width - 1)
+      if (solidAbove[at]) above++
+    }
+    grown[x] = random() < chance[above]!
+  }
+
+  // Sweep until it settles, reading the row as it goes rather than a snapshot
+  // of it: flipping one speck can leave its neighbour looking like another, so
+  // a single pass over a frozen copy puts back roughly as many as it takes out.
+  const solid = grown.slice()
+  for (let pass = 0; pass < 4; pass++) {
+    let flipped = false
+    for (let x = 1; x < width - 1; x++)
+      if (solid[x] !== solid[x - 1] && solid[x] !== solid[x + 1]) {
+        solid[x] = !solid[x]!
+        flipped = true
+      }
+    if (!flipped) break
+  }
+
+  const water: boolean[] = new Array(width).fill(false)
+  for (let x = 0; x < width;) {
+    if (solid[x]) {
+      x++
+      continue
+    }
+    let end = x
+    while (end < width && !solid[end]) end++
+    if (random() < 0.35) for (let i = x; i < end; i++) water[i] = true
+    x = end
+  }
+
+  return { solid, water }
+}
+
 export class Game {
   world: World
   private clockedItems: Clockable[] = []
@@ -77,9 +146,10 @@ export class Game {
       this.scrollOffset -= this.blockSize
       // remove the last row from the world
       this.world.removeRow(this.height - 1)
-      // add a new row to the bottom of the world
+      // add a new row to the bottom of the world, carrying on the shape of the
+      // one it arrives under rather than starting again from noise
       this.world.insertRow(0)
-      this.createRandomRow(0)
+      this.growRandomRow(0)
     }
   }
 
@@ -264,6 +334,30 @@ export class Game {
       for (let y = from.y; y !== to.y; y += Math.sign(to.y - from.y))
         carve(to.x, y)
       main.push(...region)
+    }
+  }
+
+  /**
+   * The row that belongs under row `aboveY`, grown but not placed. The fluid
+   * page keeps its next row out of the world entirely until it scrolls in.
+   */
+  rowBelow(aboveY: number): { solid: boolean[]; water: boolean[] } {
+    const solidAbove: boolean[] = []
+    for (let x = 0; x < this.world.width; x++)
+      solidAbove.push(
+        this.world.getBlock(x, aboveY)?.blockType.nature === BlockNature.solid,
+      )
+    return growRow(solidAbove, () => this.randomizer.random())
+  }
+
+  /** Grow row `y` from the row above it and put it in the world. */
+  growRandomRow(y: number) {
+    const { solid, water } = this.rowBelow(y + 1)
+    for (let x = 0; x < this.world.width; x++) {
+      const block = this.world.getBlock(x, y)!
+      block.blockType = this.world.getBlockType(
+        solid[x] ? 'rock' : water[x] ? 'water' : 'empty',
+      )
     }
   }
 

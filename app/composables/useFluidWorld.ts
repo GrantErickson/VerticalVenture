@@ -5,7 +5,7 @@ import { FlipFluid } from '~/scripts/fluid/flipFluid'
 import {
   CELLS_PER_BLOCK,
   fillBlock,
-  firstCellOf,
+  firstCellOfRow,
   gridHeightFor,
   gridWidthFor,
   syncSolids,
@@ -69,16 +69,26 @@ export function useFluidWorld() {
     })
   }
 
+  // The row waiting below the world to scroll in. It is real terrain, kept out
+  // of the block world only because World is a fixed number of rows tall and
+  // growing it would change what a seed generates — the /dom page has to build
+  // the same caves from the same seed.
+  let staged: { solid: boolean[]; water: boolean[] } | null = null
+
+  /** Whether the block at these coordinates is rock, staging row included. */
+  function solidAt(x: number, y: number): boolean {
+    if (y < 0) return staged?.solid[x] ?? true
+    return (
+      game.value.world.getBlock(x, y)?.blockType.nature === BlockNature.solid
+    )
+  }
+
   /** Rock blocks become solid cells; the outside of the world is solid too. */
   function syncTerrain() {
-    const world = game.value.world
-    syncSolids(
-      fluid.value,
-      WORLD_WIDTH,
-      WORLD_HEIGHT,
-      (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
-      drains.value,
-    )
+    syncSolids(fluid.value, WORLD_WIDTH, WORLD_HEIGHT, solidAt, {
+      staged: staged !== null,
+      openFloor: drains.value,
+    })
     fluid.value.drainFloor = drains.value
     terrainVersion.value++
   }
@@ -101,6 +111,7 @@ export function useFluidWorld() {
     next.createRandomWorld(seed.value)
     game.value = next
     fluid.value = makeFluid()
+    staged = null
     syncTerrain()
 
     // Cash the generated water in for particles, then take it out of the block
@@ -116,8 +127,11 @@ export function useFluidWorld() {
       }
     }
     changes.value = 0
-    stats.particles = fluid.value.count
     scrollProgress = 0
+    // A world rebuilt mid-scroll — a change of seed, or of particle fineness —
+    // still needs its next row waiting below it.
+    if (scrolling.value) stageNextRow()
+    stats.particles = fluid.value.count
     relight()
   }
 
@@ -147,42 +161,56 @@ export function useFluidWorld() {
     }
   }
 
-  // Stopping mid-glide would otherwise leave the world drawn part of a block
-  // off its own grid for as long as the scroll stayed off.
+  /**
+   * Build the row that will scroll in next, a whole glide before it is needed,
+   * out of sight below the world — and give it its water there and then, so it
+   * is settling while it is still hidden and arrives already behaving.
+   */
+  function stageNextRow() {
+    staged = game.value.rowBelow(0)
+    syncTerrain()
+    for (let x = 0; x < WORLD_WIDTH; x++) if (staged.water[x]) pourBlock(x, -1)
+    stats.particles = fluid.value.count
+  }
+
+  // Switching the scroll on builds the first row below the world; switching it
+  // off takes the floor back, and the water that had settled into a row nobody
+  // was ever going to see goes with it.
   watch(scrolling, (on) => {
-    if (!on) scrollProgress = 0
+    if (on) {
+      stageNextRow()
+      return
+    }
+    scrollProgress = 0
+    staged = null
+    syncTerrain()
+    fluid.value.evictFromSolids()
+    stats.particles = fluid.value.count
   })
 
-  /** One row of descent: the world slides up and a fresh row rises in. */
+  /** One row of descent: the staged row arrives and the next one is built. */
   function scrollRow() {
-    const g = game.value
-    const world = g.world
-    // The same mutation the block game's scroll makes: drop the top row,
-    // grow a fresh random one at the bottom.
+    const world = game.value.world
+    // The row that has spent the last glide sliding into view is now the
+    // world's bottom row. Its water is already in the simulation and rides up
+    // with everything else — the block only ever carries the rock.
     world.removeRow(WORLD_HEIGHT - 1)
     world.insertRow(0)
-    g.createRandomRow(0)
+    const arriving = staged
+    for (let x = 0; x < WORLD_WIDTH; x++)
+      world.getBlock(x, 0)!.blockType = world.getBlockType(
+        arriving?.solid[x] ? 'rock' : 'empty',
+      )
 
-    // The terrain just moved up a block, so the water goes with it, and
-    // whatever gets pushed past the top has scrolled off the world. The
-    // predicate names what to KEEP.
-    // Past the top of the blocks is off the world — the sky above them is
-    // headroom for a splash to come back down from, not somewhere to ride out
-    // a scroll.
+    // The terrain just moved up a block, so the water goes with it. Past the
+    // top of the blocks is off the world — the sky above them is headroom for
+    // a splash to come back down from, not somewhere to ride out a scroll.
+    // The predicate names what to KEEP.
     const f = fluid.value
     f.shiftParticles(CELLS_PER_BLOCK)
-    f.removeParticles((_x, y) => y < firstCellOf(WORLD_HEIGHT))
-    syncTerrain()
+    f.removeParticles((_x, y) => y < firstCellOfRow(WORLD_HEIGHT))
 
-    // The fresh row may bring water of its own; cash it in for particles
-    // exactly as at generation time.
-    for (let x = 0; x < WORLD_WIDTH; x++) {
-      const block = world.getBlock(x, 0)!
-      if (block.blockType.nature !== BlockNature.liquid) continue
-      block.blockType = world.getBlockType('empty')
-      pourBlock(x, 0)
-    }
-    stats.particles = f.count
+    stageNextRow()
     if (dark.value) relight()
   }
 
@@ -326,6 +354,8 @@ export function useFluidWorld() {
     dark,
     scrolling,
     advanceScroll,
+    /** Rock, the staging row below the world included, for the renderer. */
+    solidAt,
     /** The smooth part of the scroll, in fluid cells, for the renderer. */
     scrollCells: () => scrollProgress * CELLS_PER_BLOCK,
     changes,

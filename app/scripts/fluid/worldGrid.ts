@@ -47,22 +47,76 @@ export const CELL_BORDER = 1
  */
 export const HEADROOM_BLOCKS = 1
 
+/**
+ * Hidden rows below the world, where the next row to scroll in is built.
+ *
+ * A scroll glides the world upwards, and whatever is drawn in the strip that
+ * opens up along the bottom has to be *something*. With nothing down there it
+ * was the bottom row of blocks smeared downwards, with no water in it, and the
+ * real row appeared in its place with a jolt at the end of every glide.
+ *
+ * So the row is grown here first, a whole glide early, out of sight below the
+ * world. It is terrain and water like any other row from the moment it is made
+ * — the solver has it, water falls into it and settles in it — and the scroll
+ * simply slides it up into view. Block row -1 is where it lives.
+ */
+export const STAGING_BLOCKS = 1
+
 /** Cells across the simulation for a world this many blocks wide. */
 export function gridWidthFor(blockWidth: number): number {
   return blockWidth * CELLS_PER_BLOCK + 2 * CELL_BORDER
 }
 
-/** Cells up the simulation for a world this many blocks tall, sky included. */
+/** Cells up the simulation: the staging row, the world, and the sky. */
 export function gridHeightFor(blockHeight: number): number {
-  return (blockHeight + HEADROOM_BLOCKS) * CELLS_PER_BLOCK + 2 * CELL_BORDER
+  return (
+    (STAGING_BLOCKS + blockHeight + HEADROOM_BLOCKS) * CELLS_PER_BLOCK +
+    2 * CELL_BORDER
+  )
+}
+
+/** The leftmost cell that a column of blocks owns. */
+export function firstCellOfColumn(blockX: number): number {
+  return blockX * CELLS_PER_BLOCK + CELL_BORDER
 }
 
 /**
- * The lowest — or leftmost — cell that a block owns. Passed the height of the
- * world it gives the cell just above it, where the sky starts.
+ * The lowest cell that a row of blocks owns.
+ *
+ * Row 0 is the bottom of the *drawn* world, so the staging rows below it are
+ * at negative indices and the grid starts lower down than the world does — the
+ * two axes do not line up, and using one of these for the other was worth a
+ * whole afternoon. Passed the height of the world it gives the row just above
+ * the top block, where the sky starts.
  */
-export function firstCellOf(block: number): number {
-  return block * CELLS_PER_BLOCK + CELL_BORDER
+export function firstCellOfRow(blockY: number): number {
+  return (blockY + STAGING_BLOCKS) * CELLS_PER_BLOCK + CELL_BORDER
+}
+
+export interface FloorState {
+  /**
+   * The staging row holds real terrain rather than being the world's floor.
+   * True while scrolling, when it is about to become the bottom row and water
+   * has to be able to settle into it before it arrives.
+   *
+   * False otherwise, and then it is solid: the drawn bottom of the world has
+   * to be a floor water rests on, not a lip it quietly pours over into a row
+   * nobody can see.
+   */
+  staged?: boolean
+  /**
+   * The drain: the floor is a hole. Water is not deleted where it stands, it
+   * falls out of the bottom of the world, which is both what the valve claims
+   * to do and the only way to have it drain quickly *and* have the bottom row
+   * full of water on the way down. Deleting a band instead — however thin —
+   * leaves that band permanently dry, and a band thin enough not to show is
+   * too thin to drain through, a solid floor being exactly what the pressure
+   * solve uses to stop water falling.
+   *
+   * The caller must set {@link FlipFluid.drainFloor} to match: it is what
+   * keeps the opened row clear of water for the pressure solve.
+   */
+  openFloor?: boolean
 }
 
 /**
@@ -70,30 +124,24 @@ export function firstCellOf(block: number): number {
  * Every block maps onto its own square of cells and nothing else, so the floor
  * the water rests on is exactly the floor that is drawn.
  *
- * With `openFloor`, the border under the world is left open instead. That is
- * the drain: water is not deleted where it stands, it falls out through the
- * bottom of the world, which is both what the valve claims to do and the only
- * way to have it drain quickly *and* have the bottom row of blocks full of
- * water on the way. Deleting a band of water instead — however thin — leaves
- * that band permanently dry, and a band thin enough not to show is also too
- * thin to drain through, because a solid floor is exactly what the pressure
- * solve uses to stop water flowing downwards.
- *
- * The caller must set {@link FlipFluid.drainFloor} to match: it is what keeps
- * the opened row clear of water for the pressure solve.
+ * `isSolidBlock` is asked about the staging rows too, at negative y.
  */
 export function syncSolids(
   fluid: FlipFluid,
   blockWidth: number,
   blockHeight: number,
   isSolidBlock: (x: number, y: number) => boolean,
-  openFloor = false,
+  { staged = false, openFloor = false }: FloorState = {},
 ) {
   for (let x = 0; x < blockWidth; x++) {
-    for (let y = 0; y < blockHeight; y++) {
-      const solid = isSolidBlock(x, y)
-      const i0 = firstCellOf(x)
-      const j0 = firstCellOf(y)
+    for (let y = -STAGING_BLOCKS; y < blockHeight; y++) {
+      // A staged row is terrain like any other, drain or no drain — water
+      // leaves through the border below it, past whatever rock it happens to
+      // have. Unstaged, it is not a row at all but the floor the world stands
+      // on, and the drain is a hole in that floor.
+      const solid = y >= 0 || staged ? isSolidBlock(x, y) : !openFloor
+      const i0 = firstCellOfColumn(x)
+      const j0 = firstCellOfRow(y)
       for (let ci = 0; ci < CELLS_PER_BLOCK; ci++)
         for (let cj = 0; cj < CELLS_PER_BLOCK; cj++)
           fluid.setSolid(i0 + ci, j0 + cj, solid)
@@ -112,7 +160,11 @@ export function syncSolids(
   // The sky is always open, whatever the blocks below it are doing. The side
   // columns are left alone, so it is open upwards and not sideways.
   for (let i = CELL_BORDER; i < fluid.width - CELL_BORDER; i++)
-    for (let j = firstCellOf(blockHeight); j < fluid.height - CELL_BORDER; j++)
+    for (
+      let j = firstCellOfRow(blockHeight);
+      j < fluid.height - CELL_BORDER;
+      j++
+    )
       fluid.setSolid(i, j, false)
 
   // The floor comes back out from under the world, but only from under the
@@ -131,8 +183,8 @@ export function fillBlock(
   particlesPerAxis: number,
 ) {
   const step = 1 / particlesPerAxis
-  const i0 = firstCellOf(blockX)
-  const j0 = firstCellOf(blockY)
+  const i0 = firstCellOfColumn(blockX)
+  const j0 = firstCellOfRow(blockY)
   for (let ci = 0; ci < CELLS_PER_BLOCK; ci++) {
     for (let cj = 0; cj < CELLS_PER_BLOCK; cj++) {
       const cellX = i0 + ci
