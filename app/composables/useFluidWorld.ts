@@ -280,14 +280,34 @@ export function useFluidWorld() {
     stats.particles = fluid.value.count
   }
 
+  /** Is the staging row on screen and diggable at this column? */
+  function inStagingRow(blockX: number, blockY: number): boolean {
+    return (
+      blockY === -1 && staged !== null && blockX >= 0 && blockX < WORLD_WIDTH
+    )
+  }
+
   /** Whether the block at these coordinates is rock. Null out of bounds. */
   function isSolidBlock(blockX: number, blockY: number): boolean | null {
+    // The row part way into view along the bottom is as diggable as any other
+    // — it has to be, or there is no cutting a channel for the water to leave
+    // by until it has finished arriving.
+    if (inStagingRow(blockX, blockY)) return staged!.solid[blockX]!
     const block = game.value.world.getBlock(blockX, blockY)
     return block ? block.blockType.nature === BlockNature.solid : null
   }
 
   /** Set one block to rock or empty; a no-op if it already is. */
   function paintBlock(blockX: number, blockY: number, makeSolid: boolean) {
+    if (blockY < 0) {
+      if (!inStagingRow(blockX, blockY)) return
+      if (staged!.solid[blockX] === makeSolid) return
+      staged!.solid[blockX] = makeSolid
+      changes.value++
+      syncTerrain()
+      if (makeSolid) fluid.value.evictFromSolids()
+      return
+    }
     const world = game.value.world
     const block = world.getBlock(blockX, blockY)
     if (!block) return
@@ -358,6 +378,8 @@ export function useFluidWorld() {
     solidAt,
     /** The smooth part of the scroll, in fluid cells, for the renderer. */
     scrollCells: () => scrollProgress * CELLS_PER_BLOCK,
+    /** The same, in blocks, for working out what the pointer is over. */
+    scrollBlocks: () => scrollProgress,
     changes,
     stats,
     terrainVersion,

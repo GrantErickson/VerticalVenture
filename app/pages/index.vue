@@ -47,6 +47,7 @@ const {
   scrolling,
   advanceScroll,
   scrollCells,
+  scrollBlocks,
   solidAt,
   changes,
   stats,
@@ -102,9 +103,28 @@ function pushLight() {
 }
 
 // The renderer keeps its own copies of the rock and the lighting, so they only
-// need rebuilding when something actually changes rather than every frame.
-watch(terrainVersion, pushTerrain)
-watch(lightVersion, pushLight)
+// need rebuilding when something actually changes rather than every frame —
+// but they are rebuilt here, in the frame, rather than from a watcher.
+//
+// A Vue watcher does not run until the current task finishes, and the whole
+// frame happens inside one: the row steps in, the water shifts up with it, the
+// scroll offset snaps back, the frame is drawn — and only then does the
+// watcher get round to the rock. That left one frame every two seconds drawn
+// with terrain a row out of step with the water standing on it, which is the
+// flash a scroll had at every row.
+let pushedTerrain = -1
+let pushedLight = -1
+
+function pushChanges() {
+  if (pushedTerrain !== terrainVersion.value) {
+    pushTerrain()
+    pushedTerrain = terrainVersion.value
+  }
+  if (pushedLight !== lightVersion.value) {
+    pushLight()
+    pushedLight = lightVersion.value
+  }
+}
 
 onMounted(() => {
   const element = canvas.value!
@@ -121,8 +141,6 @@ onMounted(() => {
   resizeObserver.observe(element)
 
   loadFromUrl()
-  pushTerrain()
-  pushLight()
 
   const loop = (now: number) => {
     if (!start) {
@@ -143,6 +161,8 @@ onMounted(() => {
       owed -= FIXED_STEP
     }
 
+    // Last thing before drawing, so what is drawn is all of one moment.
+    pushChanges()
     renderer?.render(fluid.value, (now - start) / 1000, scrollCells())
     rafHandle = requestAnimationFrame(loop)
   }
@@ -171,9 +191,13 @@ function blockAt(event: PointerEvent): { x: number; y: number } | null {
   if (!element) return null
   const rect = element.getBoundingClientRect()
   const x = Math.floor(((event.clientX - rect.left) / rect.width) * WORLD_WIDTH)
-  // Canvas y runs down the screen, the world's y runs up it.
+  // Canvas y runs down the screen, the world's y runs up it — and mid-glide
+  // the world is drawn that fraction of a block higher than it sits, so the
+  // row under the pointer is that much lower than the screen makes it look.
+  // Without this a dig lands up to a whole row away from the cursor, and the
+  // part-arrived row along the bottom cannot be reached at all.
   const fromTop = ((event.clientY - rect.top) / rect.height) * WORLD_HEIGHT
-  return { x, y: Math.floor(WORLD_HEIGHT - fromTop) }
+  return { x, y: Math.floor(WORLD_HEIGHT - fromTop - scrollBlocks()) }
 }
 
 function onPointerDown(event: PointerEvent) {

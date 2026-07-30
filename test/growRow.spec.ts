@@ -105,18 +105,54 @@ describe('growing a row under a scrolling world', () => {
     }
   })
 
+  test('stays open however long the world scrolls', () => {
+    // Row grown from row grown from row, the way a scroll actually uses this.
+    // The first cut at the odds had its standstill at about three quarters
+    // rock, so the caverns silted up a row at a time and a long scroll ended
+    // in solid ground with nowhere for water to go.
+    for (const start of [
+      '#'.repeat(WIDTH),
+      '.'.repeat(WIDTH),
+      '#.'.repeat(25),
+    ]) {
+      const random = seeded(`long-${start.length}-${start[0]}`)
+      let above = row(start)
+      let worst = 1
+      let total = 0
+      const rows = 400
+      for (let n = 0; n < rows; n++) {
+        above = growRow(above, random).solid
+        const open = above.filter((s) => !s).length / WIDTH
+        worst = Math.min(worst, open)
+        total += open
+      }
+      // Never closes over, wherever it started...
+      expect(worst).toBeGreaterThanOrEqual(0.4)
+      // ...and settles around half and half rather than drifting to one end.
+      const average = total / rows
+      expect(average).toBeGreaterThan(0.42)
+      expect(average).toBeLessThan(0.62)
+    }
+  })
+
   test('does not grow walls down the edges of the world', () => {
-    // Reading off the end as rock would pull the outermost columns solid.
-    const above = row('.'.repeat(WIDTH))
+    // Reading off the end as rock would pull the outermost columns solid. The
+    // test is the edges against the middle, not against a number: whatever the
+    // world is doing overall, the sides should be doing the same thing.
     const random = seeded('edges')
+    let above = row('#.'.repeat(25))
 
     let edgeRock = 0
-    const runs = 60
+    let middleRock = 0
+    const runs = 200
     for (let n = 0; n < runs; n++) {
-      const { solid } = growRow(above, random)
-      if (solid[0]) edgeRock++
-      if (solid[WIDTH - 1]) edgeRock++
+      above = growRow(above, random).solid
+      if (above[0]) edgeRock++
+      if (above[WIDTH - 1]) edgeRock++
+      for (let x = 10; x < 40; x++) if (above[x]) middleRock++
     }
-    expect(edgeRock / (runs * 2)).toBeLessThan(0.25)
+    const edges = edgeRock / (runs * 2)
+    const middle = middleRock / (runs * 30)
+    expect(Math.abs(edges - middle)).toBeLessThan(0.12)
   })
 })

@@ -22,14 +22,50 @@ import { create as createRandomizer, type RandomSeed } from 'random-seed'
  * Water goes in by the run rather than by the block, so a cave arrives wet or
  * dry rather than speckled.
  */
+/** The share of a grown row that is rock, left to its own devices. */
+const TARGET_SOLID = 0.5
+/** ...and the most it is ever allowed to be, however the odds fall. */
+const MOST_SOLID = 0.6
+
+/**
+ * Flip any block that disagrees with both its neighbours — a lone block of
+ * either kind is noise, not shape. Sweeps until it settles, reading the row as
+ * it goes rather than a snapshot of it: flipping one speck can leave its
+ * neighbour looking like another, so a single pass over a frozen copy puts
+ * back roughly as many as it takes out.
+ */
+function smoothRow(solid: boolean[]) {
+  for (let pass = 0; pass < 4; pass++) {
+    let flipped = false
+    for (let x = 1; x < solid.length - 1; x++)
+      if (solid[x] !== solid[x - 1] && solid[x] !== solid[x + 1]) {
+        solid[x] = !solid[x]!
+        flipped = true
+      }
+    if (!flipped) break
+  }
+}
+
 export function growRow(
   solidAbove: boolean[],
   random: () => number,
 ): { solid: boolean[]; water: boolean[] } {
   const width = solidAbove.length
-  // How likely a column is to be rock, by how many of the three above it are.
-  const chance = [0.1, 0.32, 0.72, 0.94]
 
+  // How likely a column is to be rock, by how many of the three above it are.
+  //
+  // Symmetric on purpose — 0.06 against 0.94, 0.30 against 0.70 — because that
+  // is what puts the balance of rock and cavern at a standstill halfway. An
+  // asymmetric table has a standstill of its own wherever the odds happen to
+  // cross, and the first cut at this one sat at about three quarters rock: the
+  // caves silted up a row at a time and a long scroll ended in solid ground.
+  const chance = [0.06, 0.3, 0.7, 0.94]
+  // ...and a nudge back towards the target from wherever the row above has got
+  // to, so a run of bad luck is leant against rather than compounded.
+  const density = solidAbove.filter(Boolean).length / width
+  const bias = (TARGET_SOLID - density) * 0.6
+
+  const aboveCount: number[] = []
   const grown: boolean[] = []
   for (let x = 0; x < width; x++) {
     let above = 0
@@ -39,21 +75,39 @@ export function growRow(
       const at = Math.min(Math.max(x + dx, 0), width - 1)
       if (solidAbove[at]) above++
     }
-    grown[x] = random() < chance[above]!
+    aboveCount[x] = above
+    grown[x] = random() < Math.min(Math.max(chance[above]! + bias, 0.02), 0.98)
   }
 
-  // Sweep until it settles, reading the row as it goes rather than a snapshot
-  // of it: flipping one speck can leave its neighbour looking like another, so
-  // a single pass over a frozen copy puts back roughly as many as it takes out.
   const solid = grown.slice()
-  for (let pass = 0; pass < 4; pass++) {
-    let flipped = false
-    for (let x = 1; x < width - 1; x++)
-      if (solid[x] !== solid[x - 1] && solid[x] !== solid[x + 1]) {
-        solid[x] = !solid[x]!
-        flipped = true
-      }
-    if (!flipped) break
+  smoothRow(solid)
+
+  // Odds and a smoothing pass are still only odds and a smoothing pass, and a
+  // world that scrolls long enough will find the run of them that closes it
+  // over for good. So there is a floor under how open a row may be. A row that
+  // comes out more rock than this is opened back up, starting at the columns
+  // with the least rock above them — which is where a cavern was already
+  // heading. Holes punched at random would read as damage; these read as the
+  // cave carrying on down.
+  //
+  // Cut past the cap rather than to it, because the smoothing that follows
+  // will close a little of it back up, and then smooth again so the openings
+  // are caverns rather than a scattering of pinholes.
+  const allowed = Math.floor(width * MOST_SOLID)
+  let rock = solid.filter(Boolean).length
+  if (rock > allowed) {
+    const target = allowed - Math.ceil(width * 0.06)
+    const key: number[] = []
+    for (let x = 0; x < width; x++) key[x] = aboveCount[x]! + random()
+    const candidates: number[] = []
+    for (let x = 0; x < width; x++) if (solid[x]) candidates.push(x)
+    candidates.sort((a, b) => key[a]! - key[b]!)
+    for (const x of candidates) {
+      if (rock <= target) break
+      solid[x] = false
+      rock--
+    }
+    smoothRow(solid)
   }
 
   const water: boolean[] = new Array(width).fill(false)
