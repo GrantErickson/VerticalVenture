@@ -40,29 +40,28 @@ export function firstCellOf(block: number): number {
 }
 
 /**
- * The line an open drain takes water away at, in cells.
- *
- * The floor of the world plus one particle spacing, which is where the bottom
- * layer of a body of water comes to rest. Tighter than that and the last of the
- * water sits on the drain forever; looser, and it is drawn from water that has
- * not reached the floor yet — which turns the bottom row into a dead band that
- * water crosses without ever being drawn in it. It must stay inside the bottom
- * row of blocks, whatever the particles are set to.
- */
-export function drainLine(spacing: number): number {
-  return firstCellOf(0) + spacing
-}
-
-/**
  * Copy the rock into the simulation and lay the border back down around it.
  * Every block maps onto its own square of cells and nothing else, so the floor
  * the water rests on is exactly the floor that is drawn.
+ *
+ * With `openFloor`, the border under the world is left open instead. That is
+ * the drain: water is not deleted where it stands, it falls out through the
+ * bottom of the world, which is both what the valve claims to do and the only
+ * way to have it drain quickly *and* have the bottom row of blocks full of
+ * water on the way. Deleting a band of water instead — however thin — leaves
+ * that band permanently dry, and a band thin enough not to show is also too
+ * thin to drain through, because a solid floor is exactly what the pressure
+ * solve uses to stop water flowing downwards.
+ *
+ * The caller must set {@link FlipFluid.drainFloor} to match: it is what keeps
+ * the opened row clear of water for the pressure solve.
  */
 export function syncSolids(
   fluid: FlipFluid,
   blockWidth: number,
   blockHeight: number,
   isSolidBlock: (x: number, y: number) => boolean,
+  openFloor = false,
 ) {
   for (let x = 0; x < blockWidth; x++) {
     for (let y = 0; y < blockHeight; y++) {
@@ -84,6 +83,12 @@ export function syncSolids(
       fluid.setSolid(fluid.width - 1 - b, j, true)
     }
   }
+  // The floor comes back out from under the world, but only from under the
+  // world: the side columns stay solid all the way down, so the grid keeps a
+  // frame on three sides and the only way out is straight down.
+  if (openFloor)
+    for (let i = CELL_BORDER; i < fluid.width - CELL_BORDER; i++)
+      for (let b = 0; b < CELL_BORDER; b++) fluid.setSolid(i, b, false)
 }
 
 /** Fill one block's worth of cells with particles at the rest packing. */

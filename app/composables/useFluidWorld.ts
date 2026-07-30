@@ -6,7 +6,6 @@ import {
   CELLS_PER_BLOCK,
   CELL_BORDER,
   cellsForBlocks,
-  drainLine,
   fillBlock,
   syncSolids,
 } from '~/scripts/fluid/worldGrid'
@@ -77,9 +76,19 @@ export function useFluidWorld() {
       WORLD_WIDTH,
       WORLD_HEIGHT,
       (x, y) => world.getBlock(x, y)?.blockType.nature === BlockNature.solid,
+      drains.value,
     )
+    fluid.value.drainFloor = drains.value
     terrainVersion.value++
   }
+
+  // The valve is a change to the world's floor, so it is re-laid like any
+  // other. Closing it must not lift water that had already left back into the
+  // world along with the floor it fell through.
+  watch(drains, (open) => {
+    syncTerrain()
+    if (!open) fluid.value.evictFromSolids()
+  })
 
   /** Cash one block of generated water in for particles. */
   function pourBlock(blockX: number, blockY: number) {
@@ -265,12 +274,8 @@ export function useFluidWorld() {
     const f = fluid.value
     const started = performance.now()
 
-    if (drains.value) {
-      // Water is gone once it reaches the bottom of the world, and not before.
-      const floor = drainLine(f.spacing)
-      f.removeParticles((_x, y) => y > floor)
-    }
-
+    // Draining needs nothing here: an open valve is an open floor, and the
+    // water leaves through it under its own weight.
     f.step(dt)
 
     stepMsThisSecond += performance.now() - started

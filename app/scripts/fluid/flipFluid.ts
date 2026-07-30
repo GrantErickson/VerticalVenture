@@ -102,6 +102,19 @@ export class FlipFluid {
   readonly density: Float32Array
   restDensity = 0
 
+  /**
+   * An open floor: water reaching the bottom of the grid falls out of the world
+   * instead of piling up on it.
+   *
+   * Opening it is the caller's job — clearing the solid flags along the bottom
+   * row is what lets gravity onto those faces and what tells the pressure solve
+   * it may push flow through them, and the solve reads `solid` directly. What
+   * this flag does is hold up the other end of that bargain: the row is emptied
+   * of particles at the top of every step, so no cell on the very edge of the
+   * grid is ever water by the time the solve reaches for its neighbours.
+   */
+  drainFloor = false
+
   count = 0
   readonly px: Float32Array
   readonly py: Float32Array
@@ -242,6 +255,10 @@ export class FlipFluid {
   step(dt: number, substeps = 1) {
     const sub = dt / substeps
     for (let s = 0; s < substeps; s++) {
+      // Whatever fell through the floor last step is out of the world, and has
+      // to be gone before the grid is built or it would be water in a cell the
+      // solve is not allowed to have water in.
+      if (this.drainFloor) this.removeParticles((_x, y) => y >= 1)
       this.transferToGrid()
       this.updateDensity()
       this.applyGravity(sub)

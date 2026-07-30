@@ -4,14 +4,10 @@ import {
   CELLS_PER_BLOCK,
   CELL_BORDER,
   cellsForBlocks,
-  drainLine,
   fillBlock,
   firstCellOf,
   syncSolids,
 } from '@/scripts/fluid/worldGrid'
-
-/** Every particle fineness the settings menu offers: n packs n² into a cell. */
-const PARTICLES_PER_AXIS = [1, 2, 3, 4]
 
 const BLOCKS_WIDE = 8
 const BLOCKS_TALL = 6
@@ -95,33 +91,69 @@ describe('world grid', () => {
     expect(fluid.count).toEqual(full * 4)
   })
 
-  test('an open drain takes water at the floor, not a row above it', () => {
-    for (const perAxis of PARTICLES_PER_AXIS) {
-      const line = drainLine(1 / perAxis)
-      // Above the floor, or the last of the water never leaves...
-      expect(line).toBeGreaterThan(firstCellOf(0))
-      // ...and inside the bottom row of blocks, or that row is a dead band
-      // that water is deleted from before it is ever drawn there. This was
-      // the bug: the line sat at firstCellOf(1) + 0.5, a whole block row up,
-      // so opening the drain emptied the bottom row rather than draining it.
-      expect(line).toBeLessThan(firstCellOf(1))
+  test('an open floor opens under the world and nowhere else', () => {
+    const fluid = makeWorld()
+    syncSolids(fluid, BLOCKS_WIDE, BLOCKS_TALL, () => false, true)
+
+    // Straight down is the only way out: the floor under the blocks is open...
+    for (let i = CELL_BORDER; i < fluid.width - CELL_BORDER; i++)
+      expect(fluid.isSolid(i, 0)).toBe(false)
+    // ...and the rest of the frame is untouched, corners included, so no cell
+    // the pressure solve can reach ever sits on the edge of the grid.
+    expect(fluid.isSolid(0, 0)).toBe(true)
+    expect(fluid.isSolid(fluid.width - 1, 0)).toBe(true)
+    for (let j = 0; j < fluid.height; j++) {
+      expect(fluid.isSolid(0, j)).toBe(true)
+      expect(fluid.isSolid(fluid.width - 1, j)).toBe(true)
     }
+    for (let i = 0; i < fluid.width; i++)
+      expect(fluid.isSolid(i, fluid.height - 1)).toBe(true)
+
+    // ...and it closes again.
+    syncSolids(fluid, BLOCKS_WIDE, BLOCKS_TALL, () => false, false)
+    for (let i = 0; i < fluid.width; i++) expect(fluid.isSolid(i, 0)).toBe(true)
   })
 
-  test('a settled body of water reaches down past the drain line', () => {
-    // The line is only useful if water actually gets to it. Pour a column in
-    // and let it settle onto the floor: the bottom of it has to end up below
-    // the line, or an open drain would sit there doing nothing.
-    const perAxis = 4
+  test('an open floor empties the world, and quickly', () => {
     const fluid = makeWorld()
-    for (let y = 0; y < 3; y++) fillBlock(fluid, 3, y, perAxis)
+    for (let x = 0; x < BLOCKS_WIDE; x++)
+      for (let y = 0; y < 3; y++) fillBlock(fluid, x, y, 4)
+    const poured = fluid.count
+    expect(poured).toBeGreaterThan(1000)
 
-    for (let i = 0; i < 300; i++) fluid.step(1 / 60)
+    // Shut, the floor holds every drop.
+    for (let i = 0; i < 120; i++) fluid.step(1 / 60)
+    expect(fluid.count).toEqual(poured)
 
-    let lowest = Infinity
-    for (let i = 0; i < fluid.count; i++)
-      lowest = Math.min(lowest, fluid.py[i]!)
-    expect(lowest).toBeLessThan(drainLine(1 / perAxis))
+    // Open, it goes — under its own weight, rather than being deleted where it
+    // stands. Two seconds is the pace this is held to: draining by nibbling a
+    // thin band off the bottom took the better part of a minute, and widening
+    // that band is what left the bottom row dry.
+    syncSolids(fluid, BLOCKS_WIDE, BLOCKS_TALL, () => false, true)
+    fluid.drainFloor = true
+    for (let i = 0; i < 120; i++) fluid.step(1 / 60)
+    expect(fluid.count).toEqual(0)
+  })
+
+  test('water crosses the bottom row on its way out of an open floor', () => {
+    const fluid = makeWorld()
+    for (let x = 0; x < BLOCKS_WIDE; x++)
+      for (let y = 2; y < 5; y++) fillBlock(fluid, x, y, 4)
+    syncSolids(fluid, BLOCKS_WIDE, BLOCKS_TALL, () => false, true)
+    fluid.drainFloor = true
+
+    // The water starts two rows up, so it has to cross the bottom row to
+    // leave, and it has to be *in* that row while it does. The old drain
+    // deleted it a row early, so the bottom row was never water at all.
+    let mostInBottomRow = 0
+    for (let i = 0; i < 90; i++) {
+      fluid.step(1 / 60)
+      let here = 0
+      for (let p = 0; p < fluid.count; p++)
+        if (fluid.py[p]! < firstCellOf(1)) here++
+      mostInBottomRow = Math.max(mostInBottomRow, here)
+    }
+    expect(mostInBottomRow).toBeGreaterThan(100)
   })
 
   test('water poured into the bottom row stays in the bottom row', () => {
